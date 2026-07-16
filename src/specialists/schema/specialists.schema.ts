@@ -29,6 +29,7 @@ const SpecialistSchemaDefinition = {
   specialties: { type: [String], default: [] },
   bio: { type: String },
   rating: { type: Number, min: 0, max: 5, default: 0 },
+  defaultShift: { type: Types.ObjectId, ref: 'Shift', default: null },
   services: { type: [{ type: Types.ObjectId, ref: 'Service' }], default: [] },
 };
 

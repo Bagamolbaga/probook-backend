@@ -10,6 +10,7 @@ import { ServiceModule } from './services/services.module';
 import { SpecialistModule } from './specialists/specialist.module';
 import { ShiftModule } from './shift/shift.module';
 import { BookingModule } from './booking/booking.module';
+import { ScheduleModule } from './schedule/schedule.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { BookingModule } from './booking/booking.module';
     ServiceModule,
     SpecialistModule,
     ShiftModule,
+    ScheduleModule,
     BookingModule,
     CompanyModule,
   ],

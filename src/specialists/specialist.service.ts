@@ -31,7 +31,7 @@ export class SpecialistService {
         company: new Types.ObjectId(companyId),
         role: UserRole.SPECIALIST,
       })
-      .populate('services');
+      .populate('services defaultShift');
   }
 
   async getSpecialistBy({

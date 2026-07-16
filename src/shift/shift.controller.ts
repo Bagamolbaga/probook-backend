@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -8,11 +9,11 @@ import {
   Put,
   Request,
 } from '@nestjs/common';
-import { CreateShiftDto, ShiftService } from './shift.service';
+import { ShiftService } from './shift.service';
 import { Types } from 'mongoose';
-import { Shift } from './schema/shift.schema';
 import { SpecialistService } from 'src/specialists/specialist.service';
 import { CompanyService } from 'src/companies/companies.service';
+import { CreateShiftDto, UpdateShiftDto } from './dto/shift.dto';
 
 @Controller('companies')
 export class ShiftController {
@@ -70,10 +71,7 @@ export class ShiftController {
     @Body() body: CreateShiftDto,
   ) {
     try {
-      const newCompany = await this.shiftService.createShift({
-        company: companyId,
-        ...body,
-      });
+      const newCompany = await this.shiftService.createShift(companyId, body);
 
       return newCompany;
     } catch (error) {
@@ -81,27 +79,51 @@ export class ShiftController {
     }
   }
 
-  @Put('/:companyId/shifts/:serviceId')
+  @Put('/:companyId/shifts/:shiftId')
   async addSpecialistToService(
     @Param('companyId') companyId: string,
-    @Param('serviceId') serviceId: Types.ObjectId,
-    @Body() body: Partial<Shift> & { specialistIds?: string[] },
+    @Param('shiftId') shiftId: Types.ObjectId,
+    @Body() body: UpdateShiftDto,
   ) {
     if (!companyId) {
       throw new NotFoundException('Company not found');
     }
 
-    if (!serviceId) {
-      throw new NotFoundException('Service not found');
+    if (!shiftId) {
+      throw new NotFoundException('Shift not found');
     }
 
     try {
       const service = await this.shiftService.updateShiftById({
-        id: serviceId,
+        id: shiftId,
         data: body,
       });
 
       return service;
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  @Delete('/:companyId/shifts/:shiftId')
+  async deleteShift(
+    @Param('companyId') companyId: string,
+    @Param('shiftId') shiftId: Types.ObjectId,
+  ) {
+    if (!companyId) {
+      throw new NotFoundException('Company not found');
+    }
+
+    if (!shiftId) {
+      throw new NotFoundException('Shift not found');
+    }
+
+    try {
+      const deletedShift = await this.shiftService.deleteShiftBy({
+        id: shiftId,
+      });
+
+      return deletedShift;
     } catch (error) {
       console.log(error);
     }

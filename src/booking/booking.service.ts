@@ -6,6 +6,7 @@ import { Company } from 'src/companies/schema/company.schema';
 import { Specialist } from 'src/specialists/schema/specialists.schema';
 import { Service } from 'src/services/schema/services.schema';
 import { UserRole } from 'src/user/schema/user.schema';
+import { AvailabilityService } from 'src/availability/availability.service';
 
 type SafetyBooking = Omit<Booking, 'id' | '_id'>;
 export type CreateBookingDto = Partial<SafetyBooking>;
@@ -23,6 +24,7 @@ export class BookingService {
     @InjectModel(Service.name) private serviceModel: Model<Service>,
     @InjectModel(UserRole.SPECIALIST)
     private specialistModel: Model<Specialist>,
+    private availabilityService: AvailabilityService,
   ) {}
 
   async createBooking(dto: CreateBookingDto) {
@@ -33,6 +35,13 @@ export class BookingService {
     const specialist = await this.specialistModel
       .findById(dto.specialist as unknown as Types.ObjectId)
       .lean();
+
+    await this.availabilityService.assertSlotsAreBookable({
+      companyId: dto.company.toString(),
+      specialistId: (dto.specialist as unknown as Types.ObjectId).toString(),
+      date: dto.date,
+      slots: dto.slots,
+    });
 
     const booking = new this.bookingModel({
       ...dto,
