@@ -11,7 +11,7 @@ export type EffectiveShiftSource =
 export type EffectiveShift = {
   source: EffectiveShiftSource;
   shift: ShiftDto | null;
-  slots: number[];
+  workingSlots: number[];
   breakSlots: number[];
 };
 
@@ -45,7 +45,7 @@ export type ScheduleRangeDayDto = {
   source: EffectiveShiftSource;
   shiftId: string | null;
   shiftName: string | null;
-  slots: number[];
+  workingSlots: number[];
   breakSlots: number[];
   busySlots?: number[];
   availableSlots?: number[];

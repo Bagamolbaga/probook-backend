@@ -19,7 +19,7 @@ export type EffectiveShiftSource =
 export type EffectiveShift = {
   source: EffectiveShiftSource;
   shift: ShiftDto | null;
-  slots: number[];
+  workingSlots: number[];
   breakSlots: number[];
 };
 
@@ -29,6 +29,7 @@ export class ShiftService {
 
   toDto(shift: Shift): ShiftDto {
     const obj = shift.toObject ? shift.toObject() : shift;
+    const legacySlots = (obj as unknown as { slots?: number[] }).slots;
     const id = obj.id || obj._id?.toString();
     const companyId = obj.company?.toString();
     const specialistId = obj.specialist ? obj.specialist.toString() : null;
@@ -43,7 +44,7 @@ export class ShiftService {
       description: obj.description,
       color: obj.color,
       date: obj.date ? this.formatDate(obj.date) : null,
-      slots: obj.slots || [],
+      workingSlots: obj.workingSlots || legacySlots || [],
       breakSlots: obj.breakSlots || [],
       createdAt: obj.createdAt?.toISOString?.(),
       updatedAt: obj.updatedAt?.toISOString?.(),
@@ -141,13 +142,13 @@ export class ShiftService {
     companyId,
     specialistId,
     date,
-    fallbackSlots = [],
+    fallbackWorkingSlots = [],
     fallbackBreakSlots = [],
   }: {
     companyId: Types.ObjectId | string;
     specialistId: Types.ObjectId | string;
     date: string | Date;
-    fallbackSlots?: number[];
+    fallbackWorkingSlots?: number[];
     fallbackBreakSlots?: number[];
   }): Promise<EffectiveShift> {
     const companyObjectId = new Types.ObjectId(companyId);
@@ -166,7 +167,7 @@ export class ShiftService {
       return {
         source: 'override',
         shift: dto,
-        slots: dto.slots,
+        workingSlots: dto.workingSlots,
         breakSlots: dto.breakSlots,
       };
     }
@@ -183,7 +184,7 @@ export class ShiftService {
       return {
         source: 'specialist_default',
         shift: dto,
-        slots: dto.slots,
+        workingSlots: dto.workingSlots,
         breakSlots: dto.breakSlots,
       };
     }
@@ -200,7 +201,7 @@ export class ShiftService {
       return {
         source: 'company_default',
         shift: dto,
-        slots: dto.slots,
+        workingSlots: dto.workingSlots,
         breakSlots: dto.breakSlots,
       };
     }
@@ -208,7 +209,7 @@ export class ShiftService {
     return {
       source: 'company_schedule',
       shift: null,
-      slots: fallbackSlots,
+      workingSlots: fallbackWorkingSlots,
       breakSlots: fallbackBreakSlots,
     };
   }

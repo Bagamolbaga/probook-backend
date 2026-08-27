@@ -12,6 +12,12 @@ export enum UserRole {
   OWNER = 'owner',
 }
 
+export enum AuthProvider {
+  PASSWORD = 'password',
+  GOOGLE = 'google',
+  BOTH = 'both',
+}
+
 @Schema({ timestamps: true })
 export class User {
   _id: Types.ObjectId;
@@ -37,6 +43,31 @@ export class User {
 
   @Prop({ default: null })
   avatar?: string | null;
+
+  @Prop({ select: false })
+  passwordHash?: string;
+
+  @Prop({
+    type: String,
+    enum: AuthProvider,
+    default: AuthProvider.PASSWORD,
+  })
+  authProvider: AuthProvider;
+
+  @Prop()
+  googleId?: string;
+
+  @Prop({ default: false })
+  emailVerified?: boolean;
+
+  @Prop({ default: null, select: false })
+  refreshTokenHash?: string | null;
+
+  @Prop({ default: 0 })
+  tokenVersion?: number;
+
+  @Prop()
+  lastLoginAt?: Date;
 
   @Prop({
     type: String,
@@ -69,6 +100,9 @@ UserSchema.set('toJSON', {
     ret.id = ret._id.toHexString();
     delete ret._id;
     delete ret.__v;
+    delete ret.passwordHash;
+    delete ret.refreshTokenHash;
+    delete ret.tokenVersion;
     return ret;
   },
 });
@@ -79,6 +113,11 @@ UserSchema.set('toObject', {
     ret.id = ret._id.toHexString();
     delete ret._id;
     delete ret.__v;
+    delete ret.passwordHash;
+    delete ret.refreshTokenHash;
+    delete ret.tokenVersion;
     return ret;
   },
 });
+
+UserSchema.index({ googleId: 1 }, { unique: true, sparse: true });

@@ -40,7 +40,7 @@ export class Shift extends Document {
   kind: ShiftKind;
 
   @Prop({ type: [Number], required: true, default: [] })
-  slots: number[];
+  workingSlots: number[];
 
   @Prop({ type: [Number], required: true, default: [] })
   breakSlots: number[];
@@ -75,7 +75,6 @@ export type ShiftDocument = HydratedDocument<Shift>;
 
 export const ShiftSchema = SchemaFactory.createForClass(Shift);
 
-ShiftSchema.index({ company: 1 });
 ShiftSchema.index({ company: 1, kind: 1 });
 ShiftSchema.index(
   { company: 1, specialist: 1, date: 1 },

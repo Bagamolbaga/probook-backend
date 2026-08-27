@@ -11,6 +11,8 @@ import { SpecialistModule } from './specialists/specialist.module';
 import { ShiftModule } from './shift/shift.module';
 import { BookingModule } from './booking/booking.module';
 import { ScheduleModule } from './schedule/schedule.module';
+import { AuthModule } from './auth/auth.module';
+import { ServiceCategoriesModule } from './service-categories/service-categories.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { ScheduleModule } from './schedule/schedule.module';
     ScheduleModule,
     BookingModule,
     CompanyModule,
+    AuthModule,
+    ServiceCategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

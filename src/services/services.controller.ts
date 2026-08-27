@@ -8,17 +8,20 @@ import {
   Post,
   Put,
   Request,
+  UseGuards,
 } from '@nestjs/common';
-import { CreateServiceDto, ServiceService } from './services.service';
-import { Types } from 'mongoose';
-import { Service } from './schema/services.schema';
+import { ServiceService } from './services.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyOwnerGuard } from '../auth/guards/company-owner.guard';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
 
 @Controller('companies')
 export class ServiceController {
   constructor(private servicesService: ServiceService) {}
 
   @Get('/:companyId/services')
-  async getCompanies(@Param('companyId') companyId: string) {
+  async getCompanies(@Param('companyId', ParseObjectIdPipe) companyId: string) {
     const services = await this.servicesService.getCompanyServices({
       companyId,
     });
@@ -46,29 +49,25 @@ export class ServiceController {
   }
 
   @Post('/:companyId/services')
+  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
   async createCompany(
-    @Param('companyId') companyId: Types.ObjectId,
+    @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Body() body: CreateServiceDto,
   ) {
-    try {
-      const newCompany = await this.servicesService.createService({
-        companyId,
-        ...body,
-      });
+    const newCompany = await this.servicesService.createService({
+      companyId,
+      ...body,
+    });
 
-      //TODO set `company` field to user.company
-
-      return newCompany;
-    } catch (error) {
-      console.log(error);
-    }
+    return newCompany;
   }
 
   @Put('/:companyId/services/:serviceId')
+  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
   async addSpecialistToService(
-    @Param('companyId') companyId: string,
-    @Param('serviceId') serviceId: string,
-    @Body() body: Partial<Service> & { specialistIds?: string[] },
+    @Param('companyId', ParseObjectIdPipe) companyId: string,
+    @Param('serviceId', ParseObjectIdPipe) serviceId: string,
+    @Body() body: UpdateServiceDto,
   ) {
     if (!companyId) {
       throw new NotFoundException('Company not found');
@@ -78,22 +77,20 @@ export class ServiceController {
       throw new NotFoundException('Service not found');
     }
 
-    try {
-      const service = await this.servicesService.updateService({
-        serviceId,
-        data: body,
-      });
+    const service = await this.servicesService.updateService({
+      companyId,
+      serviceId,
+      data: body,
+    });
 
-      return service;
-    } catch (error) {
-      console.log(error);
-    }
+    return service;
   }
 
   @Delete('/:companyId/services/:serviceId')
+  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
   async deleteService(
-    @Param('companyId') companyId: Types.ObjectId,
-    @Param('serviceId') serviceId: Types.ObjectId,
+    @Param('companyId', ParseObjectIdPipe) companyId: string,
+    @Param('serviceId', ParseObjectIdPipe) serviceId: string,
   ) {
     if (!companyId) {
       throw new NotFoundException('Company not found');
@@ -103,14 +100,11 @@ export class ServiceController {
       throw new NotFoundException('Service not found');
     }
 
-    try {
-      const service = await this.servicesService.deleteServiceBy({
-        id: serviceId,
-      });
+    const service = await this.servicesService.deleteServiceBy({
+      id: serviceId,
+      companyId,
+    });
 
-      return service;
-    } catch (error) {
-      console.log(error);
-    }
+    return service;
   }
 }

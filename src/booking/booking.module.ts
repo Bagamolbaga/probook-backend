@@ -3,9 +3,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BookingController } from './booking.controller';
 import { Booking, BookingSchema } from './schema/booking.schema';
 import { BookingService } from './booking.service';
-import { SpecialistService } from 'src/specialists/specialist.service';
-import { ServiceService } from 'src/services/services.service';
-import { UserService } from 'src/user/user.service';
 import { UserModule } from 'src/user/user.module';
 import { SpecialistModule } from 'src/specialists/specialist.module';
 import { ServiceModule } from 'src/services/services.module';
@@ -37,6 +34,6 @@ import { AvailabilityModule } from 'src/availability/availability.module';
     AvailabilityModule,
   ],
   controllers: [BookingController],
-  providers: [UserService, SpecialistService, ServiceService, BookingService],
+  providers: [BookingService],
 })
 export class BookingModule {}

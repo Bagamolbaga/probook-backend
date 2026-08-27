@@ -7,20 +7,20 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Request,
 } from '@nestjs/common';
 import { ShiftService } from './shift.service';
 import { Types } from 'mongoose';
 import { SpecialistService } from 'src/specialists/specialist.service';
-import { CompanyService } from 'src/companies/companies.service';
 import { CreateShiftDto, UpdateShiftDto } from './dto/shift.dto';
+import { ShiftKind } from './schema/shift.schema';
 
 @Controller('companies')
 export class ShiftController {
   constructor(
     private shiftService: ShiftService,
     private specialistService: SpecialistService,
-    private companyService: CompanyService,
   ) {}
 
   @Get('/:companyId/shifts')
@@ -30,18 +30,50 @@ export class ShiftController {
   }
 
   @Get('/:companyId/specialists/shifts')
-  async getSpecialistsShifts(@Param('companyId') companyId: Types.ObjectId) {
+  async getSpecialistsShifts(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+    @Query('date') date?: string,
+  ) {
     const specialists = await this.specialistService.getSpecialists({
       companyId,
     });
     const shifts = await this.shiftService.getCompanyShifts({ companyId });
 
-    const firstShiftWithSlots = shifts.find((shift) => shift.slots.length > 0);
+    const rangeStart = (start || date)?.slice(0, 10);
+    const rangeEnd = (end || date || start)?.slice(0, 10);
+    const results = specialists.map((specialist) => {
+      const specialistId = specialist.id.toString();
+      const overrides = shifts.filter(
+        (shift) =>
+          shift.kind === ShiftKind.OVERRIDE &&
+          shift.specialistId === specialistId &&
+          (!rangeStart || (shift.date && shift.date >= rangeStart)) &&
+          (!rangeEnd || (shift.date && shift.date <= rangeEnd)),
+      );
+      const populatedDefaultShift = specialist.defaultShift as unknown as
+        | { id?: string; _id?: Types.ObjectId }
+        | Types.ObjectId
+        | null
+        | undefined;
+      const defaultShiftId =
+        populatedDefaultShift && 'id' in populatedDefaultShift
+          ? populatedDefaultShift.id || populatedDefaultShift._id?.toString()
+          : populatedDefaultShift?.toString();
+      const defaultShift = defaultShiftId
+        ? shifts.find(
+            (shift) =>
+              shift.id === defaultShiftId && shift.kind === ShiftKind.DEFAULT,
+          )
+        : undefined;
 
-    const results = specialists.map((sp) => ({
-      specialist: sp,
-      shift: firstShiftWithSlots,
-    }));
+      return {
+        specialist,
+        shifts: overrides,
+        defaultShift: defaultShift || null,
+      };
+    });
 
     return {
       count: results.length,

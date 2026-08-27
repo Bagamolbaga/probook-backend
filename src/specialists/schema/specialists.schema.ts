@@ -1,7 +1,7 @@
 import { Prop, Schema } from '@nestjs/mongoose';
 import { Schema as MongooseSchema, Types } from 'mongoose';
-import { Service } from 'src/services/schema/services.schema';
-import { User, UserRole, UserSchema } from 'src/user/schema/user.schema';
+import { Service } from '../../services/schema/services.schema';
+import { User, UserRole, UserSchema } from '../../user/schema/user.schema';
 
 @Schema()
 export class Specialist extends User {

@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Company } from './schema/company.schema';
-import { Shift } from 'src/shift/schema/shift.schema';
-import { Service } from 'src/services/schema/services.schema';
+import { Shift } from '../shift/schema/shift.schema';
+import { Service } from '../services/schema/services.schema';
 // import { Service } from 'src/services/schema/services.schema';
 
 type SafetyCompany = Omit<Company, 'id' | '_id'>;
@@ -66,17 +66,36 @@ export class CompanyService {
   async updateCompanyBy(
     {
       id,
+      ownerId,
     }: {
       id?: Company['_id'];
+      ownerId?: Company['owner'];
     },
     dto: UpdateCompanyDto,
   ) {
-    return this.companyModel.updateOne({ _id: id }, dto);
+    const company = await this.companyModel.findOneAndUpdate(
+      { _id: id, owner: ownerId },
+      dto,
+      { new: true },
+    );
+
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    return company;
   }
 
-  async deleteCompanyBy({ id }: { id?: Company['_id'] }) {
+  async deleteCompanyBy({
+    id,
+    ownerId,
+  }: {
+    id?: Company['_id'];
+    ownerId?: Company['owner'];
+  }) {
     const deletedUser = await this.companyModel.findOneAndDelete({
       _id: id,
+      owner: ownerId,
     });
 
     if (!deletedUser) {

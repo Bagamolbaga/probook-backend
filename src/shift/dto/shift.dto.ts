@@ -9,7 +9,7 @@ export type ShiftDto = {
   description?: string;
   color: string;
   date: string | null;
-  slots: number[];
+  workingSlots: number[];
   breakSlots: number[];
   createdAt?: string;
   updatedAt?: string;
@@ -19,7 +19,7 @@ export type CreateDefaultShiftDto = {
   name: string;
   description?: string;
   color?: string;
-  slots: number[];
+  workingSlots: number[];
   breakSlots?: number[];
 };
 
@@ -29,7 +29,7 @@ export type CreateShiftOverrideDto = {
   name?: string;
   description?: string;
   color?: string;
-  slots: number[];
+  workingSlots: number[];
   breakSlots?: number[];
 };
 
@@ -39,6 +39,6 @@ export type UpdateShiftDto = Partial<{
   name: string;
   description: string;
   color: string;
-  slots: number[];
+  workingSlots: number[];
   breakSlots: number[];
 }>;

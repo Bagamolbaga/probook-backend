@@ -18,6 +18,7 @@ import {
   ScheduleRangeDto,
 } from './availability.types';
 import { ShiftDto } from 'src/shift/dto/shift.dto';
+import { getIntervalSlots } from './availability.utils';
 
 const WEEK_DAYS = [
   'Sunday',
@@ -64,10 +65,12 @@ export class AvailabilityService {
       excludeBookingId,
     });
     const busySlotSet = new Set(busySlots);
-    const breakSlotSet = new Set(effectiveShift.breakSlots);
-    const workingSlotSet = new Set(effectiveShift.slots);
+    const breakSlotSet = new Set(getIntervalSlots(effectiveShift.breakSlots));
+    const workingSlotSet = new Set(
+      getIntervalSlots(effectiveShift.workingSlots),
+    );
 
-    const availableSlots = effectiveShift.slots.filter(
+    const availableSlots = [...workingSlotSet].filter(
       (slot) => !breakSlotSet.has(slot) && !busySlotSet.has(slot),
     );
 
@@ -77,11 +80,11 @@ export class AvailabilityService {
       date: this.formatDate(date),
       shiftId: effectiveShift.shift?.id || null,
       source: effectiveShift.source,
-      workingSlots: effectiveShift.slots,
+      workingSlots: effectiveShift.workingSlots,
       breakSlots: effectiveShift.breakSlots,
       busySlots,
       availableSlots,
-      slots: effectiveShift.slots.map((slot) => ({
+      slots: effectiveShift.workingSlots.map((slot) => ({
         slot,
         available: availableSlots.includes(slot),
         reason: !workingSlotSet.has(slot)
@@ -162,7 +165,7 @@ export class AvailabilityService {
             source: availability.source,
             shiftId: availability.shiftId,
             shiftName: null,
-            slots: availability.workingSlots,
+            workingSlots: availability.workingSlots,
             breakSlots: availability.breakSlots,
             busySlots: availability.busySlots,
             availableSlots: availability.availableSlots,
@@ -180,7 +183,7 @@ export class AvailabilityService {
           source: effectiveShift.source,
           shiftId: effectiveShift.shift?.id || null,
           shiftName: effectiveShift.shift?.name || null,
-          slots: effectiveShift.slots,
+          workingSlots: effectiveShift.workingSlots,
           breakSlots: effectiveShift.breakSlots,
         };
       }),
@@ -246,7 +249,7 @@ export class AvailabilityService {
       return {
         source: 'off',
         shift: null,
-        slots: [],
+        workingSlots: [],
         breakSlots: [],
       };
     }
@@ -284,7 +287,7 @@ export class AvailabilityService {
     return {
       source: 'company_schedule',
       shift: null,
-      slots: weekdaySchedule.workingSlots,
+      workingSlots: weekdaySchedule.workingSlots,
       breakSlots: weekdaySchedule.breakSlots,
     };
   }
@@ -330,7 +333,7 @@ export class AvailabilityService {
     return {
       source,
       shift: dto,
-      slots: dto.slots,
+      workingSlots: dto.workingSlots,
       breakSlots: dto.breakSlots,
     };
   }
@@ -338,6 +341,7 @@ export class AvailabilityService {
   private toShiftDto(shift: Shift): ShiftDto {
     const obj = shift.toObject ? shift.toObject() : shift;
     const legacyDefault = (obj as unknown as { default?: boolean }).default;
+    const legacySlots = (obj as unknown as { slots?: number[] }).slots;
     const kind =
       obj.kind ||
       (legacyDefault === false ? ShiftKind.OVERRIDE : ShiftKind.DEFAULT);
@@ -351,7 +355,7 @@ export class AvailabilityService {
       description: obj.description,
       color: obj.color,
       date: obj.date ? this.formatDate(obj.date) : null,
-      slots: obj.slots || [],
+      workingSlots: obj.workingSlots || legacySlots || [],
       breakSlots: obj.breakSlots || [],
       createdAt: obj.createdAt?.toISOString?.(),
       updatedAt: obj.updatedAt?.toISOString?.(),
