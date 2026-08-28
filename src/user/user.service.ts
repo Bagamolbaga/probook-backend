@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { AuthProvider, User } from './schema/user.schema';
+import { AuthProvider, User, UserRole } from './schema/user.schema';
 import { Model, Types } from 'mongoose';
 
 type SafetyUser = Omit<User, 'id' | '_id'>;
@@ -23,6 +23,11 @@ export type CreateGoogleUserDto = Pick<
     googleId: string;
     emailVerified: boolean;
   };
+
+export type FindOrCreateCustomerDto = Pick<
+  User,
+  'email' | 'firstName' | 'lastName'
+>;
 
 @Injectable()
 export class UserService {
@@ -93,6 +98,28 @@ export class UserService {
     });
 
     return newUser.save();
+  }
+
+  async findOrCreateCustomer(dto: FindOrCreateCustomerDto) {
+    const email = dto.email.trim().toLowerCase();
+
+    return this.userModel.findOneAndUpdate(
+      { email },
+      {
+        $setOnInsert: {
+          email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: UserRole.CUSTOMER,
+          emailVerified: false,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    );
   }
 
   async linkGoogleProvider(userId: User['_id'] | string, googleId: string) {

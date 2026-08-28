@@ -5,6 +5,7 @@ describe('UserService', () => {
   const createService = () => {
     const model = {
       findOne: jest.fn(),
+      findOneAndUpdate: jest.fn(),
       updateOne: jest.fn(),
       findOneAndDelete: jest.fn(),
     };
@@ -36,9 +37,43 @@ describe('UserService', () => {
   it('returns null on update with no identity filters', async () => {
     const { service, model } = createService();
 
-    await expect(service.updateUserBy({}, { firstName: 'Owner' })).resolves.toBeNull();
+    await expect(
+      service.updateUserBy({}, { firstName: 'Owner' }),
+    ).resolves.toBeNull();
 
     expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('atomically finds or creates a normalized customer account', async () => {
+    const { service, model } = createService();
+    const customer = { _id: 'customer-id', email: 'customer@example.com' };
+    model.findOneAndUpdate.mockResolvedValue(customer);
+
+    await expect(
+      service.findOrCreateCustomer({
+        email: ' Customer@Example.com ',
+        firstName: 'Jane',
+        lastName: 'Doe',
+      }),
+    ).resolves.toBe(customer);
+
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { email: 'customer@example.com' },
+      {
+        $setOnInsert: {
+          email: 'customer@example.com',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          role: 'customer',
+          emailVerified: false,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    );
   });
 
   it('throws NotFoundException on delete with no identity filters', async () => {
