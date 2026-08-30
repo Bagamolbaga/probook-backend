@@ -15,7 +15,9 @@ import { Schedule, ScheduleType } from './schema/schedule.schema';
 
 @Injectable()
 export class ScheduleService {
-  constructor(@InjectModel(Schedule.name) private scheduleModel: Model<Schedule>) {}
+  constructor(
+    @InjectModel(Schedule.name) private scheduleModel: Model<Schedule>,
+  ) {}
 
   async createSchedule(companyId: string, dto: CreateScheduleDto) {
     this.assertValidDays(dto.days, dto.type || ScheduleType.WEEKLY);
@@ -66,7 +68,11 @@ export class ScheduleService {
     return this.toDto(schedule);
   }
 
-  async updateSchedule(companyId: string, scheduleId: string, dto: UpdateScheduleDto) {
+  async updateSchedule(
+    companyId: string,
+    scheduleId: string,
+    dto: UpdateScheduleDto,
+  ) {
     if (dto.days) {
       this.assertValidDays(dto.days, ScheduleType.WEEKLY);
     }
@@ -146,7 +152,9 @@ export class ScheduleService {
       const invalidDay = days.find((day) => day.day < 0 || day.day > 6);
 
       if (invalidDay) {
-        throw new BadRequestException('Weekly schedule day must be between 0 and 6');
+        throw new BadRequestException(
+          'Weekly schedule day must be between 0 and 6',
+        );
       }
     }
   }

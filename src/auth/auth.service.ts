@@ -62,7 +62,10 @@ export class AuthService {
       owner: user._id,
     } as CreateCompanyDto;
     const company = await this.companyService.createCompany(companyDto);
-    const updatedUser = await this.userService.setCompany(user._id, company._id);
+    const updatedUser = await this.userService.setCompany(
+      user._id,
+      company._id,
+    );
     const authUser = updatedUser || {
       ...user.toObject(),
       company: company._id,
@@ -90,7 +93,9 @@ export class AuthService {
   }
 
   async loginWithGoogle(idToken: string): Promise<GoogleAuthResult> {
-    const googleClientId = this.configService.get<string>('auth.googleClientId');
+    const googleClientId = this.configService.get<string>(
+      'auth.googleClientId',
+    );
 
     if (!googleClientId) {
       throw new UnauthorizedException('Google auth is not configured');

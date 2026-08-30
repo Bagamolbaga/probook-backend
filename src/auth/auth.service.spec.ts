@@ -62,7 +62,8 @@ const createService = () => {
 
 describe('AuthService', () => {
   it('registers an owner, creates company, and issues tokens', async () => {
-    const { service, userService, companyService, jwtService } = createService();
+    const { service, userService, companyService, jwtService } =
+      createService();
     const user = createUser({
       toObject: () => createUser(),
     });
@@ -173,9 +174,9 @@ describe('AuthService', () => {
       }),
     );
 
-    await expect(service.login('owner@example.com', 'password')).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(
+      service.login('owner@example.com', 'password'),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('creates a user from a verified Google id token', async () => {
@@ -197,7 +198,9 @@ describe('AuthService', () => {
         }),
       })),
     };
-    userService.getUserForAuth.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    userService.getUserForAuth
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
     userService.createGoogleUser.mockResolvedValue(googleUser);
 
     const result = await service.loginWithGoogle('id-token');

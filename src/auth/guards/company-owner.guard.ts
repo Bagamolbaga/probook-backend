@@ -14,7 +14,9 @@ export class CompanyOwnerGuard implements CanActivate {
     const companyId = request.params?.companyId;
 
     if (!user || user.role !== UserRole.OWNER) {
-      throw new ForbiddenException('Only company owner can perform this action');
+      throw new ForbiddenException(
+        'Only company owner can perform this action',
+      );
     }
 
     if (!companyId) {
@@ -24,7 +26,9 @@ export class CompanyOwnerGuard implements CanActivate {
     const userCompanyId = this.getId(user.company);
 
     if (userCompanyId !== companyId.toString()) {
-      throw new ForbiddenException('Only company owner can perform this action');
+      throw new ForbiddenException(
+        'Only company owner can perform this action',
+      );
     }
 
     return true;
