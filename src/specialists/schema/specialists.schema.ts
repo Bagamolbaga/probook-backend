@@ -1,7 +1,7 @@
 import { Prop, Schema } from '@nestjs/mongoose';
 import { Schema as MongooseSchema, Types } from 'mongoose';
-import { Service } from 'src/services/schema/services.schema';
-import { User, UserRole, UserSchema } from 'src/user/schema/user.schema';
+import { Service } from '../../services/schema/services.schema';
+import { User, UserRole, UserSchema } from '../../user/schema/user.schema';
 
 @Schema()
 export class Specialist extends User {
@@ -29,6 +29,7 @@ const SpecialistSchemaDefinition = {
   specialties: { type: [String], default: [] },
   bio: { type: String },
   rating: { type: Number, min: 0, max: 5, default: 0 },
+  defaultShift: { type: Types.ObjectId, ref: 'Shift', default: null },
   services: { type: [{ type: Types.ObjectId, ref: 'Service' }], default: [] },
 };
 

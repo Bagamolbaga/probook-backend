@@ -3,10 +3,11 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Company, CompanySchema } from './schema/company.schema';
 import { CompanyController } from './companies.controller';
 import { CompanyService } from './companies.service';
-import { Shift, ShiftSchema } from 'src/shift/schema/shift.schema';
-import { ShiftModule } from 'src/shift/shift.module';
-import { ServiceModule } from 'src/services/services.module';
-import { ServiceSchema } from 'src/services/schema/services.schema';
+import { Shift, ShiftSchema } from '../shift/schema/shift.schema';
+import { ShiftModule } from '../shift/shift.module';
+import { ServiceModule } from '../services/services.module';
+import { ServiceSchema } from '../services/schema/services.schema';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ServiceSchema } from 'src/services/schema/services.schema';
     ]),
     forwardRef(() => ShiftModule),
     forwardRef(() => ServiceModule),
+    UserModule,
   ],
   controllers: [CompanyController],
   providers: [CompanyService],

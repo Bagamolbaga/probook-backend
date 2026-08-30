@@ -10,6 +10,10 @@ import { ServiceModule } from './services/services.module';
 import { SpecialistModule } from './specialists/specialist.module';
 import { ShiftModule } from './shift/shift.module';
 import { BookingModule } from './booking/booking.module';
+import { ScheduleModule } from './schedule/schedule.module';
+import { AuthModule } from './auth/auth.module';
+import { ServiceCategoriesModule } from './service-categories/service-categories.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -28,8 +32,12 @@ import { BookingModule } from './booking/booking.module';
     ServiceModule,
     SpecialistModule,
     ShiftModule,
+    ScheduleModule,
     BookingModule,
     CompanyModule,
+    AuthModule,
+    ServiceCategoriesModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

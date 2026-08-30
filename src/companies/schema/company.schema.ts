@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
 import { Document, HydratedDocument, Types } from 'mongoose';
 import { User } from '../../user/schema/user.schema';
-import { Service } from 'src/services/schema/services.schema';
+import { Service } from '../../services/schema/services.schema';
 // import { Shift } from '../../shifts/schemas/shift.schema';
 
 export type CompanyDocument = HydratedDocument<Company>;
@@ -11,36 +11,41 @@ const DEFAULT_WORKING_SCHEDULE = {
     workingSlots: [
       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
       54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+      72,
     ],
-    breakSlots: [48, 49, 50, 51],
+    breakSlots: [48, 49, 50, 51, 52],
   },
   Tuesday: {
     workingSlots: [
       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
       54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+      72,
     ],
-    breakSlots: [48, 49, 50, 51],
+    breakSlots: [48, 49, 50, 51, 52],
   },
   Wednesday: {
     workingSlots: [
       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
       54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+      72,
     ],
-    breakSlots: [48, 49, 50, 51],
+    breakSlots: [48, 49, 50, 51, 52],
   },
   Thursday: {
     workingSlots: [
       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
       54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+      72,
     ],
-    breakSlots: [48, 49, 50, 51],
+    breakSlots: [48, 49, 50, 51, 52],
   },
   Friday: {
     workingSlots: [
       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
       54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+      72,
     ],
-    breakSlots: [48, 49, 50, 51],
+    breakSlots: [48, 49, 50, 51, 52],
   },
   Saturday: { workingSlots: [], breakSlots: [] },
   Sunday: { workingSlots: [], breakSlots: [] },

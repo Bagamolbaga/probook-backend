@@ -1,7 +1,70 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Document, Types } from 'mongoose';
-import { Service } from 'src/services/schema/services.schema';
-import { Specialist } from 'src/specialists/schema/specialists.schema';
+
+export type BookingCompanySnapshot = {
+  _id: Types.ObjectId;
+  id: string;
+  name: string;
+  description?: string;
+  businessType?: string;
+  phone?: string;
+  address?: string;
+  zipCode?: string;
+  city?: string;
+  pos?: Record<string, unknown>;
+  logo?: string;
+};
+
+export type BookingSpecialistSnapshot = {
+  _id: Types.ObjectId;
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  avatar?: string | null;
+  specialties: string[];
+  bio?: string;
+  rating?: number;
+};
+
+export type BookingServiceSnapshot = {
+  _id: Types.ObjectId;
+  id: string;
+  name: string;
+  description?: string;
+  image?: string;
+  category?: {
+    _id: Types.ObjectId;
+    id: string;
+    name: string;
+  };
+  options: Array<{
+    _id: Types.ObjectId;
+    id: string;
+    name?: string;
+    description?: string;
+    price: number;
+    duration: number;
+  }>;
+  selectedOption: {
+    _id: Types.ObjectId;
+    id: string;
+    name?: string;
+    description?: string;
+    price: number;
+    duration: number;
+  };
+};
+
+export type BookingCustomerSnapshot = {
+  _id: Types.ObjectId;
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string | null;
+};
 
 export enum BookingStatus {
   BLOCKED = 'BLOCKED',
@@ -17,26 +80,20 @@ export enum BookingStatus {
   toObject: { virtuals: true },
 })
 export class Booking extends Document {
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'Company',
-    required: true, // добавьте required, чтобы смена всегда имела компанию
-    index: true,
-  })
-  company: Types.ObjectId;
+  @Prop({ type: Object, required: true })
+  company: BookingCompanySnapshot;
 
-  @Prop({ type: Object, required: true, index: true })
-  specialist: Specialist;
+  @Prop({ type: Object, required: true })
+  specialist: BookingSpecialistSnapshot;
 
-  @Prop({ type: [Object], required: true, index: true })
-  services: Service[];
+  @Prop({ type: [Object], required: true })
+  services: BookingServiceSnapshot[];
 
-  @Prop({ type: Object, required: true, index: true })
-  customer: {
-    email: string;
-    first_name: string;
-    last_name: string;
-  };
+  @Prop({ type: Number, required: true, min: 0 })
+  totalPrice: number;
+
+  @Prop({ type: Object, required: true })
+  customer: BookingCustomerSnapshot;
 
   @Prop({ required: true })
   date: string;
@@ -59,3 +116,12 @@ export class Booking extends Document {
 export type BookingDocument = HydratedDocument<Booking>;
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
+
+BookingSchema.index({ 'company._id': 1, date: 1, status: 1 });
+BookingSchema.index({
+  'company._id': 1,
+  'specialist._id': 1,
+  date: 1,
+  status: 1,
+});
+BookingSchema.index({ 'customer._id': 1, date: -1 });

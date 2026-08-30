@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Company } from 'src/companies/schema/company.schema';
-import { Specialist } from 'src/specialists/schema/specialists.schema';
-import { UserRole } from 'src/user/schema/user.schema';
+import { Company } from '../../companies/schema/company.schema';
+import { Specialist } from '../../specialists/schema/specialists.schema';
+import { UserRole } from '../../user/schema/user.schema';
+import { ServiceCategory } from '../../service-categories/schema/service-category.schema';
 
 @Schema({ timestamps: true })
 export class ServiceOption {
@@ -53,6 +54,9 @@ export class Service extends Document {
 
   @Prop({ type: Types.ObjectId, ref: Company.name, required: true })
   company: Types.ObjectId | Company;
+
+  @Prop({ type: Types.ObjectId, ref: ServiceCategory.name, required: true })
+  category: Types.ObjectId | ServiceCategory;
 
   @Prop({ type: [ServiceOption], default: [] })
   options: ServiceOption[];

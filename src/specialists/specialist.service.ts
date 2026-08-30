@@ -2,7 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Specialist } from './schema/specialists.schema';
-import { User, UserRole } from 'src/user/schema/user.schema';
+import { User, UserRole } from '../user/schema/user.schema';
+import { Service } from '../services/schema/services.schema';
 
 type SafetySpecialist = Omit<Specialist, 'id' | '_id'>;
 export type CreateSpecialistDto = Partial<SafetySpecialist>;
@@ -14,6 +15,7 @@ export class SpecialistService {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserRole.SPECIALIST) // или имя дискриминатора, обычно то же, что UserRole.SPECIALIST
     private readonly specialistModel: Model<Specialist>,
+    @InjectModel(Service.name) private serviceModel: Model<Service>,
   ) {}
 
   async createSpecialist(dto: CreateSpecialistDto) {
@@ -31,7 +33,7 @@ export class SpecialistService {
         company: new Types.ObjectId(companyId),
         role: UserRole.SPECIALIST,
       })
-      .populate('services');
+      .populate('services defaultShift');
   }
 
   async getSpecialistBy({
@@ -48,30 +50,72 @@ export class SpecialistService {
     {
       id,
       email,
+      companyId,
     }: {
       id?: Specialist['_id'];
       email?: Specialist['email'];
+      companyId?: Specialist['company'] | string;
     },
     dto: UpdateSpecialistDto,
   ) {
-    return this.specialistModel.updateOne({ _id: id, email }, dto);
+    const query: Record<string, unknown> = {};
+
+    if (id) {
+      query._id = id;
+    }
+
+    if (email) {
+      query.email = email;
+    }
+
+    if (companyId) {
+      query.company = new Types.ObjectId(companyId.toString());
+    }
+
+    const specialist = await this.specialistModel.findOneAndUpdate(query, dto, {
+      new: true,
+    });
+
+    if (!specialist) {
+      throw new NotFoundException('Specialist not found');
+    }
+
+    return specialist;
   }
 
   async deleteSpecialistBy({
     id,
     email,
+    companyId,
   }: {
     id?: Specialist['_id'];
     email?: Specialist['email'];
+    companyId?: Specialist['company'] | string;
   }) {
-    const deletedUser = await this.specialistModel.findOneAndDelete({
-      _id: id,
-      email,
-    });
+    const query: Record<string, unknown> = {};
+
+    if (id) {
+      query._id = id;
+    }
+
+    if (email) {
+      query.email = email;
+    }
+
+    if (companyId) {
+      query.company = new Types.ObjectId(companyId.toString());
+    }
+
+    const deletedUser = await this.specialistModel.findOneAndDelete(query);
 
     if (!deletedUser) {
       throw new NotFoundException('Specialist not found');
     }
+
+    await this.serviceModel.updateMany(
+      { specialists: deletedUser._id },
+      { $pull: { specialists: deletedUser._id } },
+    );
 
     return deletedUser;
   }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { BookingService, CreateBookingDto } from './booking.service';
 
@@ -51,5 +51,30 @@ export class BookingController {
       previous: null,
       results: customers,
     };
+  }
+
+  @Get('/:companyId/customers/:customerId')
+  async getCustomerDetails(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Param('customerId') customerId: Types.ObjectId,
+  ) {
+    return this.bookingService.getCustomerDetails({ companyId, customerId });
+  }
+
+  @Get('/:companyId/customers/:customerId/bookings')
+  async getCustomerBookings(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Param('customerId') customerId: Types.ObjectId,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
+    @Query('ordering') ordering?: string,
+  ) {
+    return this.bookingService.getCustomerBookings({
+      companyId,
+      customerId,
+      offset,
+      limit,
+      ordering,
+    });
   }
 }
