@@ -15,6 +15,8 @@ import { Service } from '../services/schema/services.schema';
 import { User, UserRole } from '../user/schema/user.schema';
 import { AvailabilityService } from '../availability/availability.service';
 import { UserService } from '../user/user.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../notification/notification.types';
 
 type BookingCustomerInput = {
   email: string;
@@ -59,6 +61,7 @@ export class BookingService {
     @InjectModel(Company.name) private companyModel: Model<Company>,
     private availabilityService: AvailabilityService,
     private userService: UserService,
+    private notificationService: NotificationService,
   ) {}
 
   async createBooking(dto: CreateBookingDto) {
@@ -132,7 +135,29 @@ export class BookingService {
       specialist: this.toSpecialistSnapshot(specialist),
       customer: this.toCustomerSnapshot(customer),
     });
-    return booking.save();
+    const savedBooking = await booking.save();
+
+    if (company.owner) {
+      this.notificationService.notifyUser(
+        this.getEntityId(company.owner),
+        NotificationType.BOOKING_CREATED,
+        {
+          bookingId: savedBooking._id.toString(),
+          companyId: companyId.toString(),
+          companyName: company.name,
+          customerName:
+            `${savedBooking.customer.firstName} ${savedBooking.customer.lastName}`.trim(),
+          specialistName: savedBooking.specialist.fullName,
+          serviceNames: savedBooking.services.map((service) => service.name),
+          date: savedBooking.date,
+          slots: savedBooking.slots,
+          totalPrice: savedBooking.totalPrice,
+          status: savedBooking.status,
+        },
+      );
+    }
+
+    return savedBooking;
   }
 
   async getBookings(dto: GetBookingsDto) {
@@ -383,6 +408,10 @@ export class BookingService {
     }
 
     return new Types.ObjectId(value.toString());
+  }
+
+  private getEntityId(entity: Types.ObjectId | { _id: Types.ObjectId }) {
+    return entity instanceof Types.ObjectId ? entity : entity._id;
   }
 
   private toNonNegativeInteger(value: string | undefined, fallback: number) {

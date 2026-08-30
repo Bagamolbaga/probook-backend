@@ -13,6 +13,7 @@ import { BookingModule } from './booking/booking.module';
 import { ScheduleModule } from './schedule/schedule.module';
 import { AuthModule } from './auth/auth.module';
 import { ServiceCategoriesModule } from './service-categories/service-categories.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ServiceCategoriesModule } from './service-categories/service-categories
     CompanyModule,
     AuthModule,
     ServiceCategoriesModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

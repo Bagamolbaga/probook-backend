@@ -13,7 +13,18 @@ describe('BookingService', () => {
     const serviceId = new Types.ObjectId();
     const optionId = new Types.ObjectId();
     const customerId = new Types.ObjectId();
-    const savedBooking = { id: 'booking-id' };
+    const ownerId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const savedBooking = {
+      _id: bookingId,
+      customer: { firstName: 'Jane', lastName: 'Doe' },
+      specialist: { fullName: 'Sam Smith' },
+      services: [{ name: 'Haircut' }],
+      date: '2026-08-27',
+      slots: [10, 11],
+      totalPrice: 50,
+      status: 'PENDING',
+    };
     const save = jest.fn().mockResolvedValue(savedBooking);
     const bookingModel = jest
       .fn()
@@ -51,6 +62,7 @@ describe('BookingService', () => {
       findById: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue({
           _id: companyId,
+          owner: ownerId,
           name: 'Studio',
           description: 'Description',
         }),
@@ -68,6 +80,7 @@ describe('BookingService', () => {
         avatar: null,
       }),
     };
+    const notificationService = { notifyUser: jest.fn() };
     const service = new BookingService(
       bookingModel as any,
       serviceModel as any,
@@ -75,6 +88,7 @@ describe('BookingService', () => {
       companyModel as any,
       availabilityService as any,
       userService as any,
+      notificationService as any,
     );
 
     await expect(
@@ -122,6 +136,22 @@ describe('BookingService', () => {
       }),
     );
     expect(save).toHaveBeenCalledTimes(1);
+    expect(notificationService.notifyUser).toHaveBeenCalledWith(
+      ownerId,
+      'booking.created',
+      {
+        bookingId: bookingId.toString(),
+        companyId: companyId.toString(),
+        companyName: 'Studio',
+        customerName: 'Jane Doe',
+        specialistName: 'Sam Smith',
+        serviceNames: ['Haircut'],
+        date: '2026-08-27',
+        slots: [10, 11],
+        totalPrice: 50,
+        status: 'PENDING',
+      },
+    );
   });
 
   it('reads bookings by the embedded company id without populate', async () => {
@@ -131,6 +161,7 @@ describe('BookingService', () => {
     };
     const service = new BookingService(
       bookingModel as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
@@ -151,6 +182,7 @@ describe('BookingService', () => {
     const aggregate = jest.fn().mockReturnValue({ exec });
     const service = new BookingService(
       { aggregate } as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
@@ -205,6 +237,7 @@ describe('BookingService', () => {
     };
     const service = new BookingService(
       bookingModel as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
@@ -269,6 +302,7 @@ describe('BookingService', () => {
     };
     const service = new BookingService(
       bookingModel as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,

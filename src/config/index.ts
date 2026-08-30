@@ -1,3 +1,6 @@
+export const getAllowedOrigins = () =>
+  process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+
 export default () => ({
   port: parseInt(process.env.PORT, 10) || 4000,
   db: {
@@ -13,7 +16,5 @@ export default () => ({
       60 * 60 * 24 * 30,
     googleClientId: process.env.GOOGLE_CLIENT_ID,
   },
-  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || [
-    'http://localhost:3000',
-  ],
+  allowedOrigins: getAllowedOrigins(),
 });

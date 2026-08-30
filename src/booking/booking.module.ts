@@ -11,6 +11,7 @@ import { SpecialistSchema } from 'src/specialists/schema/specialists.schema';
 import { Service, ServiceSchema } from 'src/services/schema/services.schema';
 import { AvailabilityModule } from 'src/availability/availability.module';
 import { Company, CompanySchema } from 'src/companies/schema/company.schema';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { Company, CompanySchema } from 'src/companies/schema/company.schema';
     SpecialistModule,
     ServiceModule,
     AvailabilityModule,
+    NotificationModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],
