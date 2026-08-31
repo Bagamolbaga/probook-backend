@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -17,6 +21,7 @@ import { AvailabilityService } from '../availability/availability.service';
 import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../notification/notification.types';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 
 type BookingCustomerInput = {
   email: string;
@@ -38,9 +43,16 @@ export type CreateBookingDto = {
 };
 export type GetBookingsDto = {
   companyId: Company['_id'];
-  specialist?: Specialist['_id'];
-  date?: Date;
+  specialistId?: Specialist['_id'] | string;
+  startDate?: string;
+  endDate?: string;
+  offset?: number;
+  limit?: number;
 };
+export type GetBookingDto = Pick<GetBookingsDto, 'companyId'> & {
+  bookingId: Booking['_id'];
+};
+export type UpdateBookingServiceDto = GetBookingDto & UpdateBookingDto;
 export type GetCustomerDto = {
   companyId: Company['_id'];
   customerId: User['_id'];
@@ -161,17 +173,165 @@ export class BookingService {
   }
 
   async getBookings(dto: GetBookingsDto) {
-    const booking = await this.bookingModel.find({
-      'company._id': this.toObjectId(dto.companyId),
-    });
-    return booking;
+    const filters = this.getBookingsFilters(dto);
+    const query = this.bookingModel
+      .find(filters)
+      .sort({ date: 1, createdAt: 1 });
+
+    this.applyPagination(query, dto);
+
+    const [count, bookings] = await Promise.all([
+      this.bookingModel.countDocuments(filters),
+      query.exec(),
+    ]);
+
+    return {
+      count,
+      next: null,
+      previous: null,
+      results: bookings,
+    };
   }
 
   async getBookingsMin(dto: GetBookingsDto) {
+    const filters = this.getBookingsFilters(dto);
+    const query = this.bookingModel
+      .find(filters)
+      .select('id specialist date slots status company')
+      .sort({ date: 1, createdAt: 1 });
+
+    this.applyPagination(query, dto);
+
+    const [count, bookings] = await Promise.all([
+      this.bookingModel.countDocuments(filters),
+      query.exec(),
+    ]);
+
+    return {
+      count,
+      next: null,
+      previous: null,
+      results: bookings,
+    };
+  }
+
+  async getBooking(dto: GetBookingDto) {
     const booking = await this.bookingModel
-      .find({ 'company._id': this.toObjectId(dto.companyId) })
-      .select('id specialist date slots status company');
+      .findOne({
+        _id: this.toObjectId(dto.bookingId, 'Booking not found'),
+        'company._id': this.toObjectId(dto.companyId, 'Booking not found'),
+      })
+      .exec();
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
     return booking;
+  }
+
+  async updateBooking(dto: UpdateBookingServiceDto) {
+    const companyId = this.toObjectId(dto.companyId, 'Booking not found');
+    const bookingId = this.toObjectId(dto.bookingId, 'Booking not found');
+    const specialistId = this.toObjectId(
+      dto.specialistId,
+      'Specialist not found',
+    );
+    const booking = await this.bookingModel
+      .findOne({ _id: bookingId, 'company._id': companyId })
+      .exec();
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const serviceSelections = dto.services.map((selection) => ({
+      serviceId: this.toObjectId(selection.serviceId, 'Service not found'),
+      optionId: this.toObjectId(selection.optionId, 'Service option not found'),
+    }));
+    const uniqueServiceIds = [
+      ...new Map(
+        serviceSelections.map(({ serviceId }) => [
+          serviceId.toString(),
+          serviceId,
+        ]),
+      ).values(),
+    ];
+    const [specialist, services] = await Promise.all([
+      this.specialistModel
+        .findOne({ _id: specialistId, company: companyId })
+        .lean(),
+      this.serviceModel
+        .find({ _id: { $in: uniqueServiceIds }, company: companyId })
+        .populate('category')
+        .lean(),
+    ]);
+
+    if (!specialist) throw new NotFoundException('Specialist not found');
+    if (services.length !== uniqueServiceIds.length) {
+      throw new NotFoundException('Service not found');
+    }
+
+    const unsupportedService = services.find(
+      (service) =>
+        service.specialists.length > 0 &&
+        !service.specialists.some((specialistReference) =>
+          this.getEntityId(specialistReference).equals(specialistId),
+        ),
+    );
+
+    if (unsupportedService) {
+      throw new BadRequestException(
+        'Specialist does not provide selected service',
+      );
+    }
+
+    const serviceSnapshots = serviceSelections.map(
+      ({ serviceId, optionId }) => {
+        const service = services.find((item) => item._id.equals(serviceId));
+        const selectedOption = service?.options.find((option) =>
+          this.getServiceOptionId(option).equals(optionId),
+        );
+
+        if (!service) throw new NotFoundException('Service not found');
+        if (!selectedOption) {
+          throw new NotFoundException('Service option not found');
+        }
+
+        return this.toServiceSnapshot(service, selectedOption);
+      },
+    );
+    const totalDuration = serviceSnapshots.reduce(
+      (sum, service) => sum + service.selectedOption.duration,
+      0,
+    );
+    const expectedSlotCount = Math.ceil(totalDuration / 15);
+
+    if (dto.slots.length !== expectedSlotCount) {
+      throw new BadRequestException(
+        'Booking slots do not match selected service duration',
+      );
+    }
+
+    await this.availabilityService.assertSlotsAreBookable({
+      companyId: companyId.toString(),
+      specialistId: specialistId.toString(),
+      date: dto.date,
+      slots: dto.slots,
+      excludeBookingId: bookingId.toString(),
+    });
+
+    booking.specialist = this.toSpecialistSnapshot(specialist);
+    booking.services = serviceSnapshots;
+    booking.totalPrice = serviceSnapshots.reduce(
+      (sum, service) => sum + service.selectedOption.price,
+      0,
+    );
+    booking.date = dto.date.slice(0, 10);
+    booking.slots = [...dto.slots].sort((left, right) => left - right);
+    booking.status = dto.status;
+
+    return booking.save();
   }
 
   async getBookingsCustomers(dto: Pick<GetBookingsDto, 'companyId'>) {
@@ -408,6 +568,44 @@ export class BookingService {
     }
 
     return new Types.ObjectId(value.toString());
+  }
+
+  private getBookingsFilters(dto: GetBookingsDto): Record<string, unknown> {
+    const filters: Record<string, unknown> = {
+      'company._id': this.toObjectId(dto.companyId),
+    };
+
+    if (dto.startDate || dto.endDate) {
+      filters.date = {
+        ...(dto.startDate ? { $gte: dto.startDate.slice(0, 10) } : {}),
+        ...(dto.endDate ? { $lte: dto.endDate.slice(0, 10) } : {}),
+      };
+    }
+
+    if (dto.specialistId) {
+      filters['specialist._id'] = this.toObjectId(
+        dto.specialistId,
+        'Specialist not found',
+      );
+    }
+
+    return filters;
+  }
+
+  private applyPagination(
+    query: {
+      skip: (offset: number) => unknown;
+      limit: (limit: number) => unknown;
+    },
+    dto: Pick<GetBookingsDto, 'offset' | 'limit'>,
+  ) {
+    if (dto.offset !== undefined) {
+      query.skip(dto.offset);
+    }
+
+    if (dto.limit !== undefined) {
+      query.limit(dto.limit);
+    }
   }
 
   private getEntityId(entity: Types.ObjectId | { _id: Types.ObjectId }) {

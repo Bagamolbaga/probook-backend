@@ -154,10 +154,23 @@ describe('BookingService', () => {
     );
   });
 
-  it('reads bookings by the embedded company id without populate', async () => {
+  it('filters and paginates bookings using the frontend query contract', async () => {
     const companyId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const bookings = [{ id: 'booking-id' }];
+    const query: Record<string, jest.Mock> = {
+      sort: jest.fn(),
+      skip: jest.fn(),
+      limit: jest.fn(),
+      exec: jest.fn(),
+    };
+    query.sort.mockReturnValue(query);
+    query.skip.mockReturnValue(query);
+    query.limit.mockReturnValue(query);
+    query.exec.mockResolvedValue(bookings);
     const bookingModel = {
-      find: jest.fn().mockResolvedValue([{ id: 'booking-id' }]),
+      countDocuments: jest.fn().mockResolvedValue(12),
+      find: jest.fn().mockReturnValue(query),
     };
     const service = new BookingService(
       bookingModel as any,
@@ -169,11 +182,323 @@ describe('BookingService', () => {
       {} as any,
     );
 
-    await service.getBookings({ companyId });
+    await expect(
+      service.getBookings({
+        companyId,
+        specialistId,
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        offset: 10,
+        limit: 25,
+      }),
+    ).resolves.toEqual({
+      count: 12,
+      next: null,
+      previous: null,
+      results: bookings,
+    });
 
-    expect(bookingModel.find).toHaveBeenCalledWith({
+    const filters = {
+      'company._id': expect.objectContaining({}),
+      'specialist._id': expect.objectContaining({}),
+      date: { $gte: '2026-08-01', $lte: '2026-08-31' },
+    };
+    expect(bookingModel.countDocuments).toHaveBeenCalledWith(filters);
+    expect(bookingModel.find).toHaveBeenCalledWith(filters);
+    expect(query.sort).toHaveBeenCalledWith({ date: 1, createdAt: 1 });
+    expect(query.skip).toHaveBeenCalledWith(10);
+    expect(query.limit).toHaveBeenCalledWith(25);
+  });
+
+  it('returns the minimal booking projection with the same filters', async () => {
+    const companyId = new Types.ObjectId();
+    const bookings = [{ id: 'booking-id' }];
+    const query: Record<string, jest.Mock> = {
+      select: jest.fn(),
+      sort: jest.fn(),
+      exec: jest.fn(),
+      skip: jest.fn(),
+      limit: jest.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.sort.mockReturnValue(query);
+    query.skip.mockReturnValue(query);
+    query.limit.mockReturnValue(query);
+    query.exec.mockResolvedValue(bookings);
+    const bookingModel = {
+      countDocuments: jest.fn().mockResolvedValue(1),
+      find: jest.fn().mockReturnValue(query),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.getBookingsMin({
+        companyId,
+        startDate: '2026-08-30',
+        endDate: '2026-08-30',
+      }),
+    ).resolves.toEqual({
+      count: 1,
+      next: null,
+      previous: null,
+      results: bookings,
+    });
+
+    const filters = {
+      'company._id': expect.objectContaining({}),
+      date: { $gte: '2026-08-30', $lte: '2026-08-30' },
+    };
+    expect(bookingModel.find).toHaveBeenCalledWith(filters);
+    expect(query.select).toHaveBeenCalledWith(
+      'id specialist date slots status company',
+    );
+    expect(query.skip).not.toHaveBeenCalled();
+    expect(query.limit).not.toHaveBeenCalled();
+  });
+
+  it('returns one booking scoped to its company', async () => {
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const booking = { id: bookingId.toString() };
+    const exec = jest.fn().mockResolvedValue(booking);
+    const bookingModel = {
+      findOne: jest.fn().mockReturnValue({ exec }),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.getBooking({ companyId, bookingId })).resolves.toBe(
+      booking,
+    );
+    expect(bookingModel.findOne).toHaveBeenCalledWith({
+      _id: expect.objectContaining({}),
       'company._id': expect.objectContaining({}),
     });
+  });
+
+  it('rejects a booking that does not belong to the company', async () => {
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const bookingModel = {
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      }),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.getBooking({ companyId, bookingId })).rejects.toThrow(
+      'Booking not found',
+    );
+  });
+
+  it('updates booking snapshots, price, schedule, and status', async () => {
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const serviceId = new Types.ObjectId();
+    const optionId = new Types.ObjectId();
+    const booking = {
+      specialist: null,
+      services: [],
+      totalPrice: 0,
+      date: '2026-08-30',
+      slots: [40, 41],
+      status: 'PENDING',
+      save: jest.fn(),
+    };
+    booking.save.mockResolvedValue(booking);
+    const bookingModel = {
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(booking),
+      }),
+    };
+    const specialist = {
+      _id: specialistId,
+      company: companyId,
+      email: 'specialist@example.com',
+      firstName: 'Sam',
+      lastName: 'Smith',
+      avatar: null,
+      specialties: ['Hair'],
+      services: [serviceId],
+    };
+    const specialistModel = {
+      findOne: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(specialist),
+      }),
+    };
+    const serviceQuery = {
+      populate: jest.fn(),
+      lean: jest.fn(),
+    };
+    serviceQuery.populate.mockReturnValue(serviceQuery);
+    serviceQuery.lean.mockResolvedValue([
+      {
+        _id: serviceId,
+        name: 'Haircut',
+        company: companyId,
+        category: new Types.ObjectId(),
+        specialists: [specialistId],
+        options: [
+          {
+            _id: optionId,
+            name: 'Standard',
+            price: 75,
+            duration: 30,
+          },
+        ],
+      },
+    ]);
+    const serviceModel = {
+      find: jest.fn().mockReturnValue(serviceQuery),
+    };
+    const availabilityService = {
+      assertSlotsAreBookable: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      serviceModel as any,
+      specialistModel as any,
+      {} as any,
+      availabilityService as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.updateBooking({
+        companyId,
+        bookingId,
+        specialistId: specialistId.toString(),
+        services: [
+          {
+            serviceId: serviceId.toString(),
+            optionId: optionId.toString(),
+          },
+        ],
+        date: '2026-09-01',
+        slots: [44, 45],
+        status: 'CONFIRMED' as any,
+      }),
+    ).resolves.toBe(booking);
+
+    expect(availabilityService.assertSlotsAreBookable).toHaveBeenCalledWith({
+      companyId: companyId.toString(),
+      specialistId: specialistId.toString(),
+      date: '2026-09-01',
+      slots: [44, 45],
+      excludeBookingId: bookingId.toString(),
+    });
+    expect(booking).toEqual(
+      expect.objectContaining({
+        specialist: expect.objectContaining({ id: specialistId.toString() }),
+        services: [
+          expect.objectContaining({
+            id: serviceId.toString(),
+            selectedOption: expect.objectContaining({
+              id: optionId.toString(),
+            }),
+          }),
+        ],
+        totalPrice: 75,
+        date: '2026-09-01',
+        slots: [44, 45],
+        status: 'CONFIRMED',
+      }),
+    );
+    expect(booking.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects update slots that do not cover the selected duration', async () => {
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const serviceId = new Types.ObjectId();
+    const optionId = new Types.ObjectId();
+    const bookingModel = {
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ save: jest.fn() }),
+      }),
+    };
+    const specialistModel = {
+      findOne: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          _id: specialistId,
+          email: 'specialist@example.com',
+          firstName: 'Sam',
+          lastName: 'Smith',
+          specialties: [],
+          services: [serviceId],
+        }),
+      }),
+    };
+    const serviceQuery = {
+      populate: jest.fn(),
+      lean: jest.fn(),
+    };
+    serviceQuery.populate.mockReturnValue(serviceQuery);
+    serviceQuery.lean.mockResolvedValue([
+      {
+        _id: serviceId,
+        name: 'Haircut',
+        category: new Types.ObjectId(),
+        specialists: [specialistId],
+        options: [{ _id: optionId, price: 75, duration: 60 }],
+      },
+    ]);
+    const availabilityService = {
+      assertSlotsAreBookable: jest.fn(),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      { find: jest.fn().mockReturnValue(serviceQuery) } as any,
+      specialistModel as any,
+      {} as any,
+      availabilityService as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.updateBooking({
+        companyId,
+        bookingId,
+        specialistId: specialistId.toString(),
+        services: [
+          {
+            serviceId: serviceId.toString(),
+            optionId: optionId.toString(),
+          },
+        ],
+        date: '2026-09-01',
+        slots: [44, 45],
+        status: 'CONFIRMED' as any,
+      }),
+    ).rejects.toThrow('Booking slots do not match selected service duration');
+    expect(availabilityService.assertSlotsAreBookable).not.toHaveBeenCalled();
   });
 
   it('sums completed booking totals in the customer list', async () => {

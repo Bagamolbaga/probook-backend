@@ -5,19 +5,19 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Booking, BookingStatus } from 'src/booking/schema/booking.schema';
-import { Company } from 'src/companies/schema/company.schema';
-import { Schedule, ScheduleType } from 'src/schedule/schema/schedule.schema';
-import { Shift, ShiftKind } from 'src/shift/schema/shift.schema';
-import { Specialist } from 'src/specialists/schema/specialists.schema';
-import { UserRole } from 'src/user/schema/user.schema';
+import { Booking, BookingStatus } from '../booking/schema/booking.schema';
+import { Company } from '../companies/schema/company.schema';
+import { Schedule, ScheduleType } from '../schedule/schema/schedule.schema';
+import { Shift, ShiftKind } from '../shift/schema/shift.schema';
+import { Specialist } from '../specialists/schema/specialists.schema';
+import { UserRole } from '../user/schema/user.schema';
 import {
   AssertSlotsAreBookableInput,
   AvailabilityResult,
   EffectiveShift,
   ScheduleRangeDto,
 } from './availability.types';
-import { ShiftDto } from 'src/shift/dto/shift.dto';
+import { ShiftDto } from '../shift/dto/shift.dto';
 import { getIntervalSlots } from './availability.utils';
 
 const WEEK_DAYS = [
@@ -304,14 +304,25 @@ export class AvailabilityService {
     excludeBookingId?: string;
   }) {
     const specialistObjectId = new Types.ObjectId(specialistId);
+    const companyObjectId = new Types.ObjectId(companyId);
     const query: Record<string, unknown> = {
-      company: new Types.ObjectId(companyId),
       date: this.formatDate(date),
       status: { $in: BUSY_BOOKING_STATUSES },
-      $or: [
-        { 'specialist._id': specialistObjectId },
-        { 'specialist._id': specialistId },
-        { 'specialist.id': specialistId },
+      $and: [
+        {
+          $or: [
+            { company: companyObjectId },
+            { 'company._id': companyObjectId },
+            { 'company.id': companyId },
+          ],
+        },
+        {
+          $or: [
+            { 'specialist._id': specialistObjectId },
+            { 'specialist._id': specialistId },
+            { 'specialist.id': specialistId },
+          ],
+        },
       ],
     };
 

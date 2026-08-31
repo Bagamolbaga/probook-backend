@@ -1,31 +1,74 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { BookingService, CreateBookingDto } from './booking.service';
+import { GetBookingsQueryDto } from './dto/get-bookings-query.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyOwnerGuard } from '../auth/guards/company-owner.guard';
 
 @Controller('companies')
 export class BookingController {
   constructor(private bookingService: BookingService) {}
 
   @Get('/:companyId/bookings')
-  async getBookings(@Param('companyId') companyId: Types.ObjectId) {
-    const bookings = await this.bookingService.getBookings({ companyId });
-    return {
-      count: bookings.length,
-      next: null,
-      previous: null,
-      results: bookings,
-    };
+  async getBookings(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Query() query: GetBookingsQueryDto,
+  ) {
+    return this.bookingService.getBookings({
+      companyId,
+      startDate: query.start_date,
+      endDate: query.end_date,
+      offset: query.offset,
+      limit: query.limit,
+      specialistId: query.specialist_id,
+    });
   }
 
   @Get('/:companyId/bookings/min')
-  async getBookingsMin(@Param('companyId') companyId: Types.ObjectId) {
-    const bookings = await this.bookingService.getBookingsMin({ companyId });
-    return {
-      count: bookings.length,
-      next: null,
-      previous: null,
-      results: bookings,
-    };
+  async getBookingsMin(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Query() query: GetBookingsQueryDto,
+  ) {
+    return this.bookingService.getBookingsMin({
+      companyId,
+      startDate: query.start_date,
+      endDate: query.end_date,
+      offset: query.offset,
+      limit: query.limit,
+      specialistId: query.specialist_id,
+    });
+  }
+
+  @Get('/:companyId/bookings/:bookingId')
+  async getBooking(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Param('bookingId') bookingId: Types.ObjectId,
+  ) {
+    return this.bookingService.getBooking({ companyId, bookingId });
+  }
+
+  @Patch('/:companyId/bookings/:bookingId')
+  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  async updateBooking(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Param('bookingId') bookingId: Types.ObjectId,
+    @Body() body: UpdateBookingDto,
+  ) {
+    return this.bookingService.updateBooking({
+      companyId,
+      bookingId,
+      ...body,
+    });
   }
 
   @Post('/:companyId/bookings')
