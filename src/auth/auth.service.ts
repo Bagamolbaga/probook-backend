@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { UserService } from '../user/user.service';
@@ -101,11 +101,17 @@ export class AuthService {
       throw new UnauthorizedException('Google auth is not configured');
     }
 
-    const ticket = await this.googleClient.verifyIdToken({
-      idToken,
-      audience: googleClientId,
-    });
-    const payload = ticket.getPayload();
+    let payload: TokenPayload | undefined;
+
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Invalid Google token');
+    }
 
     if (!payload?.sub || !payload.email || !payload.email_verified) {
       throw new UnauthorizedException('Invalid Google token');
@@ -141,6 +147,17 @@ export class AuthService {
     }
 
     await this.userService.updateLastLogin(user._id);
+
+    if (payload.picture && user.avatar !== payload.picture) {
+      const updatedUser = await this.userService.updateUserBy(
+        { id: user._id },
+        { avatar: payload.picture },
+      );
+
+      if (updatedUser) {
+        user = updatedUser;
+      }
+    }
 
     return {
       ...(await this.issueTokens(user)),

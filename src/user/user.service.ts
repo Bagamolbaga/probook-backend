@@ -176,7 +176,11 @@ export class UserService {
       return null;
     }
 
-    return this.userModel.updateOne({ $or: filters }, dto);
+    return this.userModel.findOneAndUpdate(
+      { $or: filters },
+      { $set: dto },
+      { new: true, runValidators: true },
+    );
   }
 
   async deleteUserBy({

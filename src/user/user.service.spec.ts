@@ -41,7 +41,7 @@ describe('UserService', () => {
       service.updateUserBy({}, { firstName: 'Owner' }),
     ).resolves.toBeNull();
 
-    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it('atomically finds or creates a normalized customer account', async () => {

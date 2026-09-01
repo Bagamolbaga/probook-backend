@@ -29,6 +29,7 @@ const createService = () => {
     createPasswordUser: jest.fn(),
     createGoogleUser: jest.fn(),
     linkGoogleProvider: jest.fn(),
+    updateUserBy: jest.fn(),
     setRefreshTokenHash: jest.fn(),
     updateLastLogin: jest.fn(),
     setCompany: jest.fn(),
@@ -184,6 +185,7 @@ describe('AuthService', () => {
     const googleUser = createUser({
       authProvider: AuthProvider.GOOGLE,
       googleId: 'google-sub',
+      avatar: 'https://example.com/avatar.png',
       passwordHash: undefined,
     });
     (service as any).googleClient = {
@@ -214,6 +216,41 @@ describe('AuthService', () => {
       lastName: 'User',
       avatar: 'https://example.com/avatar.png',
     });
+    expect(userService.updateUserBy).not.toHaveBeenCalled();
+  });
+
+  it('updates a changed Google avatar and returns it in the auth response', async () => {
+    const { service, userService } = createService();
+    const existingUser = createUser({
+      authProvider: AuthProvider.GOOGLE,
+      googleId: 'google-sub',
+      avatar: 'https://example.com/old-avatar.png',
+    });
+    const updatedUser = createUser({
+      authProvider: AuthProvider.GOOGLE,
+      googleId: 'google-sub',
+      avatar: 'https://example.com/new-avatar.png',
+    });
+    (service as any).googleClient = {
+      verifyIdToken: jest.fn(async () => ({
+        getPayload: () => ({
+          sub: 'google-sub',
+          email: 'owner@example.com',
+          email_verified: true,
+          picture: 'https://example.com/new-avatar.png',
+        }),
+      })),
+    };
+    userService.getUserForAuth.mockResolvedValue(existingUser);
+    userService.updateUserBy.mockResolvedValue(updatedUser);
+
+    const result = await service.loginWithGoogle('id-token');
+
+    expect(userService.updateUserBy).toHaveBeenCalledWith(
+      { id: existingUser._id },
+      { avatar: 'https://example.com/new-avatar.png' },
+    );
+    expect(result.user).toBe(updatedUser);
   });
 
   it('links Google auth to an existing email user', async () => {
@@ -259,6 +296,19 @@ describe('AuthService', () => {
     };
 
     await expect(service.loginWithGoogle('id-token')).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects invalid Google tokens', async () => {
+    const { service } = createService();
+    (service as any).googleClient = {
+      verifyIdToken: jest.fn(async () => {
+        throw new Error('Invalid token signature');
+      }),
+    };
+
+    await expect(service.loginWithGoogle('invalid-token')).rejects.toThrow(
       UnauthorizedException,
     );
   });
