@@ -7,7 +7,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, UpdateQuery } from 'mongoose';
 import { Service } from './schema/services.schema';
 import { Specialist } from '../specialists/schema/specialists.schema';
-import { UserRole } from '../user/schema/user.schema';
 import { ServiceCategory } from '../service-categories/schema/service-category.schema';
 import {
   CreateServiceDto,
@@ -23,7 +22,7 @@ type CreateServiceInput = CreateServiceDto & {
 export class ServiceService {
   constructor(
     @InjectModel(Service.name) private serviceModel: Model<Service>,
-    @InjectModel(UserRole.SPECIALIST)
+    @InjectModel(Specialist.name)
     private specialistModel: Model<Specialist>,
     @InjectModel(ServiceCategory.name)
     private categoryModel: Model<ServiceCategory>,
@@ -68,7 +67,11 @@ export class ServiceService {
   }
 
   async getServiceBy({ id }: { id?: Service['_id'] }) {
-    return this.serviceModel.findOne({ _id: id }, {}, { populate: [] });
+    return this.serviceModel.findOne(
+      { _id: id ? new Types.ObjectId(id.toString()) : undefined },
+      {},
+      { populate: [] },
+    );
   }
 
   async updateServiceBy(
@@ -79,9 +82,11 @@ export class ServiceService {
     },
     dto: UpdateServiceDto,
   ) {
-    const service = await this.serviceModel.findByIdAndUpdate(id, dto, {
-      new: true,
-    });
+    const service = await this.serviceModel.findByIdAndUpdate(
+      id ? new Types.ObjectId(id.toString()) : undefined,
+      dto,
+      { new: true },
+    );
 
     if (!service) {
       throw new NotFoundException('Service not found');
@@ -97,7 +102,9 @@ export class ServiceService {
     id?: Service['_id'] | string;
     companyId?: string;
   }) {
-    const query: Record<string, unknown> = { _id: id };
+    const query: Record<string, unknown> = {
+      _id: id ? new Types.ObjectId(id.toString()) : undefined,
+    };
 
     if (companyId) {
       query.company = new Types.ObjectId(companyId);
@@ -130,7 +137,7 @@ export class ServiceService {
   }) {
     const { specialistIds, specialists, categoryId, ...serviceData } = data;
     const currentService = await this.serviceModel.findOne({
-      _id: serviceId,
+      _id: new Types.ObjectId(serviceId),
       ...(companyId ? { company: new Types.ObjectId(companyId) } : {}),
     });
 
@@ -161,7 +168,7 @@ export class ServiceService {
 
     const service = await this.serviceModel.findOneAndUpdate(
       {
-        _id: serviceId,
+        _id: new Types.ObjectId(serviceId),
         ...(companyId ? { company: new Types.ObjectId(companyId) } : {}),
       },
       query,
@@ -182,8 +189,8 @@ export class ServiceService {
 
   async removeSpecialistFromService(serviceId: string, specialistId: string) {
     const service = await this.serviceModel.findByIdAndUpdate(
-      serviceId,
-      { $pull: { specialists: specialistId } },
+      new Types.ObjectId(serviceId),
+      { $pull: { specialists: new Types.ObjectId(specialistId) } },
       { new: true },
     );
 
@@ -191,9 +198,12 @@ export class ServiceService {
       throw new NotFoundException('Service not found');
     }
 
-    await this.specialistModel.findByIdAndUpdate(specialistId, {
-      $pull: { services: serviceId },
-    });
+    await this.specialistModel.findByIdAndUpdate(
+      new Types.ObjectId(specialistId),
+      {
+        $pull: { services: new Types.ObjectId(serviceId) },
+      },
+    );
 
     return service;
   }
@@ -267,7 +277,7 @@ export class ServiceService {
         {
           _id: { $in: idsToAdd },
           company: companyObjectId,
-          role: UserRole.SPECIALIST,
+          active: true,
         },
         { $addToSet: { services: serviceObjectId } },
       );
@@ -278,7 +288,7 @@ export class ServiceService {
         {
           _id: { $in: idsToRemove },
           company: companyObjectId,
-          role: UserRole.SPECIALIST,
+          active: true,
         },
         { $pull: { services: serviceObjectId } },
       );

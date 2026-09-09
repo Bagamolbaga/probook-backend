@@ -9,20 +9,27 @@ import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { UserService } from '../user/user.service';
-import { AuthProvider, User, UserRole } from '../user/schema/user.schema';
+import {
+  AuthProvider,
+  User,
+  UserAccountStatus,
+} from '../user/schema/user.schema';
 import {
   CompanyService,
   CreateCompanyDto,
 } from '../companies/companies.service';
-import { JwtPayload } from './types';
+import { AuthCompany, AuthMembership, AuthUser, JwtPayload } from './types';
 import { RegisterDto } from './dto/register.dto';
+import { MembershipService } from '../memberships/membership.service';
+import { CompanyRole } from '../memberships/schema/company-membership.schema';
+import { SpecialistService } from '../specialists/specialist.service';
 
 type AuthResponse = {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
   tokenType: 'Bearer';
-  user: User;
+  user: AuthUser;
 };
 
 type GoogleAuthResult = AuthResponse & {
@@ -38,6 +45,8 @@ export class AuthService {
     private readonly companyService: CompanyService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly memberships: MembershipService,
+    private readonly specialists: SpecialistService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
@@ -54,7 +63,6 @@ export class AuthService {
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
-      role: UserRole.OWNER,
       emailVerified: false,
     });
     const companyDto: CreateCompanyDto = {
@@ -62,18 +70,11 @@ export class AuthService {
       owner: user._id,
     } as CreateCompanyDto;
     const company = await this.companyService.createCompany(companyDto);
-    const updatedUser = await this.userService.setCompany(
-      user._id,
-      company._id,
-    );
-    const authUser = updatedUser || {
-      ...user.toObject(),
-      company: company._id,
-    };
+    await this.memberships.upsertRole(user._id, company._id, CompanyRole.OWNER);
 
     await this.userService.updateLastLogin(user._id);
 
-    return this.issueTokens(authUser as User);
+    return this.issueTokens(user);
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
@@ -81,6 +82,7 @@ export class AuthService {
 
     if (
       !user?.passwordHash ||
+      user.accountStatus !== UserAccountStatus.ACTIVE ||
       user.authProvider === AuthProvider.GOOGLE ||
       !(await argon2.verify(user.passwordHash, password))
     ) {
@@ -121,8 +123,16 @@ export class AuthService {
     let user = await this.userService.getUserForAuth({ googleId: payload.sub });
     let created = false;
 
+    if (user?.accountStatus === UserAccountStatus.SUSPENDED) {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
     if (!user) {
       const existingUser = await this.userService.getUserForAuth({ email });
+
+      if (existingUser?.accountStatus === UserAccountStatus.SUSPENDED) {
+        throw new UnauthorizedException('Account is suspended');
+      }
 
       if (existingUser?.googleId && existingUser.googleId !== payload.sub) {
         throw new ConflictException('Google account conflict');
@@ -171,6 +181,7 @@ export class AuthService {
 
     if (
       !user?.refreshTokenHash ||
+      user.accountStatus !== UserAccountStatus.ACTIVE ||
       !(await argon2.verify(user.refreshTokenHash, refreshToken))
     ) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -194,7 +205,11 @@ export class AuthService {
   }
 
   async me(user: User) {
-    return { user };
+    return { user: await this.enrichUser(user) };
+  }
+
+  issueTokensForUser(user: User) {
+    return this.issueTokens(user);
   }
 
   private async issueTokens(user: User): Promise<AuthResponse> {
@@ -213,7 +228,7 @@ export class AuthService {
       refreshToken,
       expiresIn,
       tokenType: 'Bearer',
-      user,
+      user: await this.enrichUser(user),
     };
   }
 
@@ -221,10 +236,49 @@ export class AuthService {
     return {
       sub: user._id.toString(),
       email: user.email,
-      role: user.role,
-      companyId: user.company?.toString() || null,
       tokenVersion: user.tokenVersion || 0,
     };
+  }
+
+  private async enrichUser(user: User): Promise<AuthUser> {
+    const membershipDocuments = await this.memberships.findActive(user._id);
+    const memberships: AuthMembership[] = await Promise.all(
+      membershipDocuments.map(async (membership: any) => {
+        const companyId =
+          membership.companyId?._id?.toString?.() ||
+          membership.companyId.toString();
+        const profile = membership.roles.includes(CompanyRole.SPECIALIST)
+          ? await this.specialists.getSpecialistBy({
+              userId: user._id,
+              companyId,
+            })
+          : null;
+        return {
+          id: membership._id.toString(),
+          companyId,
+          companyName: membership.companyId?.name || null,
+          roles: membership.roles,
+          status: membership.status,
+          specialistProfileId: profile?._id.toString() || null,
+          permissions: this.memberships.permissions(membership.roles),
+        };
+      }),
+    );
+    const companies: AuthCompany[] = memberships.map((membership) => ({
+      id: membership.companyId,
+      name: membership.companyName,
+      roles: membership.roles,
+      specialistProfileId: membership.specialistProfileId,
+      permissions: membership.permissions,
+    }));
+    const safe =
+      typeof (user as any).toObject === 'function'
+        ? (user as any).toObject()
+        : { ...user };
+    delete safe.passwordHash;
+    delete safe.refreshTokenHash;
+    delete safe.tokenVersion;
+    return { ...safe, companies, memberships } as AuthUser;
   }
 
   private createRefreshToken(user: User) {

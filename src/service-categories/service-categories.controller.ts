@@ -9,7 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CompanyOwnerGuard } from '../auth/guards/company-owner.guard';
+import { CompanyPermissionGuard } from '../memberships/company-permission.guard';
+import { CompanyPermission } from '../memberships/membership.service';
+import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { CreateServiceCategoryDto } from './dto/create-service-category.dto';
 import { UpdateServiceCategoryDto } from './dto/update-service-category.dto';
@@ -35,7 +37,8 @@ export class ServiceCategoriesController {
   }
 
   @Post('/:companyId/service-categories')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   createCompanyCategory(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Body() body: CreateServiceCategoryDto,
@@ -44,7 +47,8 @@ export class ServiceCategoriesController {
   }
 
   @Put('/:companyId/service-categories/:categoryId')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   updateCompanyCategory(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Param('categoryId', ParseObjectIdPipe) categoryId: string,
@@ -58,7 +62,8 @@ export class ServiceCategoriesController {
   }
 
   @Delete('/:companyId/service-categories/:categoryId')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   deleteCompanyCategory(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Param('categoryId', ParseObjectIdPipe) categoryId: string,

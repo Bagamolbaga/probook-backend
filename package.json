@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "seed:service-categories": "ts-node -r tsconfig-paths/register src/scripts/seed-service-categories.ts",
     "migrate:service-categories": "ts-node -r tsconfig-paths/register src/scripts/migrate-service-categories.ts",
+    "reset:test-data": "ts-node -r tsconfig-paths/register src/scripts/reset-test-database.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
     "google-auth-library": "^10.9.0",
     "mongoose": "^9.0.1",
     "multer": "^2.0.2",
+    "nodemailer": "^9.1.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^6.19.0",
@@ -55,6 +57,7 @@
     "@types/jest": "^29.5.2",
     "@types/mongoose": "^5.11.97",
     "@types/node": "^20.3.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",

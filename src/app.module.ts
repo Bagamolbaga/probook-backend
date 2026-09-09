@@ -14,6 +14,8 @@ import { ScheduleModule } from './schedule/schedule.module';
 import { AuthModule } from './auth/auth.module';
 import { ServiceCategoriesModule } from './service-categories/service-categories.module';
 import { NotificationModule } from './notification/notification.module';
+import { MembershipModule } from './memberships/membership.module';
+import { InvitationModule } from './invitations/invitation.module';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { NotificationModule } from './notification/notification.module';
         uri: configService.get('db.url'),
       }),
     }),
+    MembershipModule,
     UserModule,
     ServiceModule,
     SpecialistModule,
@@ -38,6 +41,7 @@ import { NotificationModule } from './notification/notification.module';
     AuthModule,
     ServiceCategoriesModule,
     NotificationModule,
+    InvitationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

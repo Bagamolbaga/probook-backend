@@ -16,5 +16,14 @@ export default () => ({
       60 * 60 * 24 * 30,
     googleClientId: process.env.GOOGLE_CLIENT_ID,
   },
+  email: {
+    provider: process.env.EMAIL_PROVIDER || 'gmail',
+    gmailUser: process.env.GMAIL_USER,
+    gmailAppPassword: process.env.GMAIL_APP_PASSWORD,
+    from: process.env.EMAIL_FROM,
+  },
+  invitation: {
+    ttlHours: parseInt(process.env.INVITATION_TTL_HOURS, 10) || 168,
+  },
   allowedOrigins: getAllowedOrigins(),
 });

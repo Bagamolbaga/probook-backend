@@ -58,6 +58,29 @@ $ pnpm run test:e2e
 $ pnpm run test:cov
 ```
 
+## Employee invitation email
+
+The MVP sends specialist invitations through a dedicated Gmail account. Enable
+two-factor authentication for that account, create an App Password, and configure
+`EMAIL_PROVIDER`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM`, and
+`FRONTEND_URL` from `.env.example`. If delivery is unavailable, the invitation API
+still returns a copyable one-time link.
+
+## Reset disposable test data
+
+The employee-auth schema is intentionally breaking and does not migrate legacy test
+documents. To clear the configured non-production MongoDB database explicitly:
+
+```bash
+$env:ALLOW_DATABASE_RESET="true"
+pnpm reset:test-data
+```
+
+The command refuses `NODE_ENV=production`, database names containing `prod`,
+`production`, or `live`, and runs only with the confirmation variable. It is never
+executed automatically during startup or deployment. After reset, register the first
+owner through the normal owner registration flow.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

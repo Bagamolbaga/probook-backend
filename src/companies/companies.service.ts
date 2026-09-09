@@ -50,12 +50,13 @@ export class CompanyService {
   }
 
   async getCompanyBy({ id }: { id?: Company['_id'] }) {
+    const companyId = id ? new Types.ObjectId(id.toString()) : undefined;
     const company = await this.companyModel
-      .findById(id)
-      .populate('owner')
+      .findById(companyId)
+      .populate('owner', 'firstName lastName avatar')
       .lean();
 
-    const shifts = await this.shiftModel.find({ company: id }).lean();
+    const shifts = await this.shiftModel.find({ company: companyId }).lean();
 
     return {
       ...company,
@@ -64,20 +65,13 @@ export class CompanyService {
   }
 
   async updateCompanyBy(
-    {
-      id,
-      ownerId,
-    }: {
-      id?: Company['_id'];
-      ownerId?: Company['owner'];
-    },
+    { id }: { id?: Company['_id'] },
     dto: UpdateCompanyDto,
   ) {
-    const company = await this.companyModel.findOneAndUpdate(
-      { _id: id, owner: ownerId },
-      dto,
-      { new: true },
-    );
+    const companyId = id ? new Types.ObjectId(id.toString()) : undefined;
+    const company = await this.companyModel.findByIdAndUpdate(companyId, dto, {
+      new: true,
+    });
 
     if (!company) {
       throw new NotFoundException('Company not found');
@@ -86,17 +80,9 @@ export class CompanyService {
     return company;
   }
 
-  async deleteCompanyBy({
-    id,
-    ownerId,
-  }: {
-    id?: Company['_id'];
-    ownerId?: Company['owner'];
-  }) {
-    const deletedUser = await this.companyModel.findOneAndDelete({
-      _id: id,
-      owner: ownerId,
-    });
+  async deleteCompanyBy({ id }: { id?: Company['_id'] }) {
+    const companyId = id ? new Types.ObjectId(id.toString()) : undefined;
+    const deletedUser = await this.companyModel.findByIdAndDelete(companyId);
 
     if (!deletedUser) {
       throw new NotFoundException('Company not found');

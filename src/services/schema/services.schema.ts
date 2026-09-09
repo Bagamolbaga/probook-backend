@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Company } from '../../companies/schema/company.schema';
 import { Specialist } from '../../specialists/schema/specialists.schema';
-import { UserRole } from '../../user/schema/user.schema';
 import { ServiceCategory } from '../../service-categories/schema/service-category.schema';
 
 @Schema({ timestamps: true })
@@ -61,7 +60,7 @@ export class Service extends Document {
   @Prop({ type: [ServiceOption], default: [] })
   options: ServiceOption[];
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Specialist' }], default: [] })
   specialists: Types.ObjectId[] | Specialist[];
 
   // Виртуальное поле: получить всех специалистов (populate)
@@ -74,9 +73,9 @@ export class Service extends Document {
 export const ServiceSchema = SchemaFactory.createForClass(Service);
 
 ServiceSchema.virtual('specialistsPopulated', {
-  ref: 'User',
+  ref: 'Specialist',
   localField: 'specialists',
   foreignField: '_id',
   justOne: false,
-  match: { role: UserRole.SPECIALIST },
+  match: { active: true },
 });

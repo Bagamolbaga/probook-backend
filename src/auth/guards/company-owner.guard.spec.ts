@@ -1,65 +1,34 @@
 import { ForbiddenException } from '@nestjs/common';
-import { UserRole } from '../../user/schema/user.schema';
+import { CompanyRole } from '../../memberships/schema/company-membership.schema';
 import { CompanyOwnerGuard } from './company-owner.guard';
 
-const createContext = ({
-  user,
-  companyId,
-}: {
-  user?: Record<string, unknown>;
-  companyId?: string;
-}) =>
-  ({
-    switchToHttp: () => ({
-      getRequest: () => ({
-        user,
-        params: { companyId },
-      }),
+const context = {
+  switchToHttp: () => ({
+    getRequest: () => ({
+      user: { _id: 'user-1' },
+      params: { companyId: 'company-1' },
     }),
-  }) as any;
+  }),
+} as any;
 
 describe('CompanyOwnerGuard', () => {
-  const guard = new CompanyOwnerGuard();
-
-  it('allows an owner of the requested company', () => {
-    expect(
-      guard.canActivate(
-        createContext({
-          companyId: 'company-1',
-          user: {
-            role: UserRole.OWNER,
-            company: { _id: 'company-1' },
-          },
-        }),
-      ),
-    ).toBe(true);
+  it('allows an active owner membership', async () => {
+    const memberships = {
+      findActive: jest.fn().mockResolvedValue([{ roles: [CompanyRole.OWNER] }]),
+    };
+    await expect(
+      new CompanyOwnerGuard(memberships as any).canActivate(context),
+    ).resolves.toBe(true);
   });
 
-  it('rejects owners of another company', () => {
-    expect(() =>
-      guard.canActivate(
-        createContext({
-          companyId: 'company-2',
-          user: {
-            role: UserRole.OWNER,
-            company: 'company-1',
-          },
-        }),
-      ),
-    ).toThrow(ForbiddenException);
-  });
-
-  it('rejects non-owner users', () => {
-    expect(() =>
-      guard.canActivate(
-        createContext({
-          companyId: 'company-1',
-          user: {
-            role: UserRole.MANAGER,
-            company: 'company-1',
-          },
-        }),
-      ),
-    ).toThrow(ForbiddenException);
+  it('rejects a specialist-only membership', async () => {
+    const memberships = {
+      findActive: jest
+        .fn()
+        .mockResolvedValue([{ roles: [CompanyRole.SPECIALIST] }]),
+    };
+    await expect(
+      new CompanyOwnerGuard(memberships as any).canActivate(context),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

@@ -1,15 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { Company } from '../../companies/schema/company.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
-export enum UserRole {
-  ADMIN = 'admin',
-  MANAGER = 'manager',
-  SPECIALIST = 'specialist',
-  CUSTOMER = 'customer',
-  OWNER = 'owner',
+export enum UserAccountStatus {
+  ACTIVE = 'ACTIVE',
+  UNCLAIMED = 'UNCLAIMED',
+  SUSPENDED = 'SUSPENDED',
 }
 
 export enum AuthProvider {
@@ -22,15 +19,6 @@ export enum AuthProvider {
 export class User {
   _id: Types.ObjectId;
   id: string;
-
-  // null = без компании (например, владелец, который ещё не создал компанию)
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'Company',
-    default: null,
-    sparse: true, // позволяет иметь много null значений
-  })
-  company?: Types.ObjectId | Company | null;
 
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
@@ -66,15 +54,15 @@ export class User {
   @Prop({ default: 0 })
   tokenVersion?: number;
 
-  @Prop()
-  lastLoginAt?: Date;
-
   @Prop({
     type: String,
-    enum: UserRole,
-    default: UserRole.CUSTOMER,
+    enum: UserAccountStatus,
+    default: UserAccountStatus.ACTIVE,
   })
-  role: UserRole;
+  accountStatus: UserAccountStatus;
+
+  @Prop()
+  lastLoginAt?: Date;
 
   get fullName(): string {
     return `${this.firstName} ${this.lastName}`.trim();
@@ -91,9 +79,6 @@ UserSchema.virtual('fullName').get(function () {
 });
 
 // UserSchema.index({ email: 1 });
-// UserSchema.index({ company: 1 });
-// UserSchema.index({ role: 1 });
-
 UserSchema.set('toJSON', {
   virtuals: true,
   transform: (_doc, ret) => {

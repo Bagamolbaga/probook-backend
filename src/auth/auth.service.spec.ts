@@ -1,6 +1,7 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AuthProvider, UserRole } from '../user/schema/user.schema';
+import { AuthProvider, UserAccountStatus } from '../user/schema/user.schema';
+import { CompanyRole } from '../memberships/schema/company-membership.schema';
 
 jest.mock('argon2', () => ({
   hash: jest.fn(async (value: string) => `hashed:${value}`),
@@ -13,9 +14,8 @@ const createUser = (overrides: Record<string, unknown> = {}) =>
     email: 'owner@example.com',
     firstName: 'Owner',
     lastName: 'User',
-    company: null,
-    role: UserRole.OWNER,
     authProvider: AuthProvider.PASSWORD,
+    accountStatus: UserAccountStatus.ACTIVE,
     passwordHash: 'hashed:password',
     refreshTokenHash: 'hashed:refresh',
     tokenVersion: 0,
@@ -32,7 +32,6 @@ const createService = () => {
     updateUserBy: jest.fn(),
     setRefreshTokenHash: jest.fn(),
     updateLastLogin: jest.fn(),
-    setCompany: jest.fn(),
   };
   const companyService = {
     createCompany: jest.fn(),
@@ -51,29 +50,48 @@ const createService = () => {
       return values[key];
     }),
   };
+  const membershipService = {
+    upsertRole: jest.fn(),
+    findActive: jest.fn().mockResolvedValue([]),
+    permissions: jest.fn().mockReturnValue([]),
+  };
+  const specialistService = { getSpecialistBy: jest.fn() };
   const service = new AuthService(
     userService as any,
     companyService as any,
     jwtService as any,
     configService as any,
+    membershipService as any,
+    specialistService as any,
   );
 
-  return { service, userService, companyService, jwtService, configService };
+  return {
+    service,
+    userService,
+    companyService,
+    jwtService,
+    configService,
+    membershipService,
+    specialistService,
+  };
 };
 
 describe('AuthService', () => {
   it('registers an owner, creates company, and issues tokens', async () => {
-    const { service, userService, companyService, jwtService } =
-      createService();
+    const {
+      service,
+      userService,
+      companyService,
+      jwtService,
+      membershipService,
+    } = createService();
     const user = createUser({
       toObject: () => createUser(),
     });
     const company = { _id: { toString: () => 'company-1' } };
-    const updatedUser = createUser({ company: company._id });
     userService.getUserBy.mockResolvedValue(null);
     userService.createPasswordUser.mockResolvedValue(user);
     companyService.createCompany.mockResolvedValue(company);
-    userService.setCompany.mockResolvedValue(updatedUser);
 
     const result = await service.register({
       email: 'OWNER@EXAMPLE.COM',
@@ -91,7 +109,6 @@ describe('AuthService', () => {
       passwordHash: expect.stringMatching(/^hashed:/),
       firstName: 'Owner',
       lastName: 'User',
-      role: UserRole.OWNER,
       emailVerified: false,
     });
     expect(companyService.createCompany).toHaveBeenCalledWith({
@@ -99,12 +116,23 @@ describe('AuthService', () => {
       phone: '+10000000000',
       owner: user._id,
     });
-    expect(userService.setCompany).toHaveBeenCalledWith(user._id, company._id);
-    expect(result.user).toBe(updatedUser);
+    expect(membershipService.upsertRole).toHaveBeenCalledWith(
+      user._id,
+      company._id,
+      CompanyRole.OWNER,
+    );
+    expect(result.user).toEqual(
+      expect.objectContaining({
+        email: 'owner@example.com',
+        companies: [],
+        memberships: [],
+      }),
+    );
     expect(jwtService.signAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         sub: 'user-1',
-        companyId: 'company-1',
+        email: 'owner@example.com',
+        tokenVersion: 0,
       }),
       { expiresIn: 36000 },
     );
@@ -139,13 +167,17 @@ describe('AuthService', () => {
     expect(result.refreshToken).toEqual(expect.any(String));
     expect(result.expiresIn).toBe(36000);
     expect(result.tokenType).toBe('Bearer');
-    expect(result.user).toBe(user);
+    expect(result.user).toEqual(
+      expect.objectContaining({
+        email: 'owner@example.com',
+        companies: [],
+        memberships: [],
+      }),
+    );
     expect(jwtService.signAsync).toHaveBeenCalledWith(
       {
         sub: 'user-1',
         email: 'owner@example.com',
-        role: UserRole.OWNER,
-        companyId: null,
         tokenVersion: 0,
       },
       { expiresIn: 36000 },
@@ -250,7 +282,13 @@ describe('AuthService', () => {
       { id: existingUser._id },
       { avatar: 'https://example.com/new-avatar.png' },
     );
-    expect(result.user).toBe(updatedUser);
+    expect(result.user).toEqual(
+      expect.objectContaining({
+        avatar: 'https://example.com/new-avatar.png',
+        companies: [],
+        memberships: [],
+      }),
+    );
   });
 
   it('links Google auth to an existing email user', async () => {
@@ -345,6 +383,91 @@ describe('AuthService', () => {
     expect(userService.setRefreshTokenHash).toHaveBeenCalledTimes(2);
 
     await expect(service.refresh('bad')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('returns all active companies with roles, permissions, and specialist profile', async () => {
+    const { service, userService, membershipService, specialistService } =
+      createService();
+    const user = createUser();
+    userService.getUserForAuth.mockResolvedValue(user);
+    membershipService.findActive.mockResolvedValue([
+      {
+        _id: { toString: () => 'membership-1' },
+        companyId: {
+          _id: { toString: () => 'company-1' },
+          name: 'Owner company',
+        },
+        roles: [CompanyRole.OWNER],
+        status: 'ACTIVE',
+      },
+      {
+        _id: { toString: () => 'membership-2' },
+        companyId: {
+          _id: { toString: () => 'company-2' },
+          name: 'Specialist company',
+        },
+        roles: [CompanyRole.SPECIALIST],
+        status: 'ACTIVE',
+      },
+    ]);
+    membershipService.permissions
+      .mockReturnValueOnce(['company:manage'])
+      .mockReturnValueOnce(['bookings:read:self']);
+    specialistService.getSpecialistBy.mockResolvedValue({
+      _id: { toString: () => 'specialist-2' },
+    });
+
+    const result = await service.login('owner@example.com', 'password');
+
+    expect(result.user.companies).toEqual([
+      {
+        id: 'company-1',
+        name: 'Owner company',
+        roles: [CompanyRole.OWNER],
+        specialistProfileId: null,
+        permissions: ['company:manage'],
+      },
+      {
+        id: 'company-2',
+        name: 'Specialist company',
+        roles: [CompanyRole.SPECIALIST],
+        specialistProfileId: 'specialist-2',
+        permissions: ['bookings:read:self'],
+      },
+    ]);
+    expect(specialistService.getSpecialistBy).toHaveBeenCalledWith({
+      userId: user._id,
+      companyId: 'company-2',
+    });
+    expect(result.user.memberships).toHaveLength(2);
+  });
+
+  it('returns companies from both refresh and me responses', async () => {
+    const { service, userService, membershipService } = createService();
+    const user = createUser();
+    userService.getUserForAuth.mockResolvedValue(user);
+    membershipService.findActive.mockResolvedValue([
+      {
+        _id: { toString: () => 'membership-1' },
+        companyId: {
+          _id: { toString: () => 'company-1' },
+          name: 'Owner company',
+        },
+        roles: [CompanyRole.OWNER],
+        status: 'ACTIVE',
+      },
+    ]);
+
+    const loginResult = await service.login('owner@example.com', 'password');
+    const refreshResult = await service.refresh(loginResult.refreshToken);
+    const meResult = await service.me(user);
+
+    expect(refreshResult.user.companies).toEqual([
+      expect.objectContaining({ id: 'company-1', name: 'Owner company' }),
+    ]);
+    expect(meResult.user.companies).toEqual([
+      expect.objectContaining({ id: 'company-1', name: 'Owner company' }),
+    ]);
   });
 
   it('invalidates refresh token on logout', async () => {

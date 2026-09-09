@@ -3,8 +3,11 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ServiceController } from './services.controller';
 import { ServiceSchema } from './schema/services.schema';
 import { ServiceService } from './services.service';
-import { User, UserRole, UserSchema } from '../user/schema/user.schema';
-import { SpecialistSchema } from '../specialists/schema/specialists.schema';
+import { User, UserSchema } from '../user/schema/user.schema';
+import {
+  Specialist,
+  SpecialistSchema,
+} from '../specialists/schema/specialists.schema';
 import {
   ServiceCategory,
   ServiceCategorySchema,
@@ -22,7 +25,7 @@ import {
         schema: UserSchema,
       },
       {
-        name: UserRole.SPECIALIST,
+        name: Specialist.name,
         schema: SpecialistSchema,
       },
       {

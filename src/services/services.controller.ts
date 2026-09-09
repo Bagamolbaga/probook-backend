@@ -12,7 +12,9 @@ import {
 } from '@nestjs/common';
 import { ServiceService } from './services.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CompanyOwnerGuard } from '../auth/guards/company-owner.guard';
+import { CompanyPermissionGuard } from '../memberships/company-permission.guard';
+import { CompanyPermission } from '../memberships/membership.service';
+import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
 
@@ -49,7 +51,8 @@ export class ServiceController {
   }
 
   @Post('/:companyId/services')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   async createCompany(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Body() body: CreateServiceDto,
@@ -63,7 +66,8 @@ export class ServiceController {
   }
 
   @Put('/:companyId/services/:serviceId')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   async addSpecialistToService(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Param('serviceId', ParseObjectIdPipe) serviceId: string,
@@ -87,7 +91,8 @@ export class ServiceController {
   }
 
   @Delete('/:companyId/services/:serviceId')
-  @UseGuards(JwtAuthGuard, CompanyOwnerGuard)
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.COMPANY_MANAGE)
   async deleteService(
     @Param('companyId', ParseObjectIdPipe) companyId: string,
     @Param('serviceId', ParseObjectIdPipe) serviceId: string,

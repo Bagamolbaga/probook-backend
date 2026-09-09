@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -9,13 +9,17 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { CompanyOwnerGuard } from './guards/company-owner.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { SpecialistModule } from '../specialists/specialist.module';
+import { SpecialistSelfOrOwnerGuard } from './guards/specialist-self-or-owner.guard';
 
+@Global()
 @Module({
   imports: [
     ConfigModule,
     PassportModule,
     UserModule,
     CompanyModule,
+    SpecialistModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -30,7 +34,17 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, CompanyOwnerGuard],
-  exports: [CompanyOwnerGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    CompanyOwnerGuard,
+    SpecialistSelfOrOwnerGuard,
+  ],
+  exports: [
+    CompanyOwnerGuard,
+    SpecialistSelfOrOwnerGuard,
+    AuthService,
+    ThrottlerModule,
+  ],
 })
 export class AuthModule {}

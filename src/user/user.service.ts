@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { AuthProvider, User, UserRole } from './schema/user.schema';
-import { Model, Types } from 'mongoose';
+import { AuthProvider, User, UserAccountStatus } from './schema/user.schema';
+import { ClientSession, Model, Types } from 'mongoose';
 
 type SafetyUser = Omit<User, 'id' | '_id'>;
 export type CreateUserDto = Partial<SafetyUser>;
@@ -11,7 +11,7 @@ export type CreatePasswordUserDto = Pick<
   User,
   'email' | 'firstName' | 'lastName'
 > &
-  Partial<Pick<User, 'avatar' | 'company' | 'role' | 'emailVerified'>> & {
+  Partial<Pick<User, 'avatar' | 'emailVerified'>> & {
     passwordHash: string;
   };
 
@@ -19,7 +19,7 @@ export type CreateGoogleUserDto = Pick<
   User,
   'email' | 'firstName' | 'lastName'
 > &
-  Partial<Pick<User, 'avatar' | 'company' | 'role'>> & {
+  Partial<Pick<User, 'avatar'>> & {
     googleId: string;
     emailVerified: boolean;
   };
@@ -60,34 +60,41 @@ export class UserService {
     return this.userModel.findOne({ $or: filters });
   }
 
-  async getUserForAuth({
-    id,
-    email,
-    googleId,
-  }: {
-    id?: User['_id'] | string;
-    email?: User['email'];
-    googleId?: User['googleId'];
-  }) {
+  async getUserForAuth(
+    {
+      id,
+      email,
+      googleId,
+    }: {
+      id?: User['_id'] | string;
+      email?: User['email'];
+      googleId?: User['googleId'];
+    },
+    session?: ClientSession,
+  ) {
     const filters = this.buildIdentityFilters({ id, email, googleId });
 
     if (!filters.length) {
       return null;
     }
 
-    return this.userModel
+    const query = this.userModel
       .findOne({ $or: filters })
       .select('+passwordHash +refreshTokenHash');
+    return session ? query.session(session) : query;
   }
 
-  async createPasswordUser(dto: CreatePasswordUserDto) {
+  async createPasswordUser(
+    dto: CreatePasswordUserDto,
+    session?: ClientSession,
+  ) {
     const newUser = new this.userModel({
       ...dto,
       authProvider: AuthProvider.PASSWORD,
       email: dto.email.toLowerCase(),
     });
 
-    return newUser.save();
+    return session ? newUser.save({ session }) : newUser.save();
   }
 
   async createGoogleUser(dto: CreateGoogleUserDto) {
@@ -110,7 +117,8 @@ export class UserService {
           email,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: UserRole.CUSTOMER,
+          accountStatus: UserAccountStatus.UNCLAIMED,
+          authProvider: AuthProvider.PASSWORD,
           emailVerified: false,
         },
       },
@@ -124,21 +132,48 @@ export class UserService {
 
   async linkGoogleProvider(userId: User['_id'] | string, googleId: string) {
     return this.userModel.findByIdAndUpdate(
-      userId,
+      new Types.ObjectId(userId.toString()),
       {
         $set: {
           googleId,
           emailVerified: true,
           authProvider: AuthProvider.BOTH,
+          accountStatus: UserAccountStatus.ACTIVE,
         },
       },
       { new: true },
     );
   }
 
+  async claimWithPassword(
+    userId: User['_id'] | string,
+    passwordHash: string,
+    profile: Pick<User, 'firstName' | 'lastName'>,
+    session?: ClientSession,
+  ) {
+    return this.userModel
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(userId.toString()),
+          accountStatus: UserAccountStatus.UNCLAIMED,
+        },
+        {
+          $set: {
+            passwordHash,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            authProvider: AuthProvider.PASSWORD,
+            accountStatus: UserAccountStatus.ACTIVE,
+          },
+        },
+        { new: true, runValidators: true, session },
+      )
+      .select('+passwordHash +refreshTokenHash');
+  }
+
   async setRefreshTokenHash(userId: User['_id'] | string, hash: string | null) {
     return this.userModel.findByIdAndUpdate(
-      userId,
+      new Types.ObjectId(userId.toString()),
       { $set: { refreshTokenHash: hash } },
       { new: true },
     );
@@ -146,16 +181,8 @@ export class UserService {
 
   async updateLastLogin(userId: User['_id'] | string) {
     return this.userModel.findByIdAndUpdate(
-      userId,
+      new Types.ObjectId(userId.toString()),
       { $set: { lastLoginAt: new Date() } },
-      { new: true },
-    );
-  }
-
-  async setCompany(userId: User['_id'] | string, companyId: User['company']) {
-    return this.userModel.findByIdAndUpdate(
-      userId,
-      { $set: { company: companyId } },
       { new: true },
     );
   }
@@ -219,7 +246,7 @@ export class UserService {
     const filters: Record<string, unknown>[] = [];
 
     if (id && Types.ObjectId.isValid(id.toString())) {
-      filters.push({ _id: id });
+      filters.push({ _id: new Types.ObjectId(id.toString()) });
     }
 
     if (email) {

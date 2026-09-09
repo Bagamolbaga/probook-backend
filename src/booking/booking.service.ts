@@ -16,7 +16,7 @@ import {
 import { Company } from '../companies/schema/company.schema';
 import { Specialist } from '../specialists/schema/specialists.schema';
 import { Service } from '../services/schema/services.schema';
-import { User, UserRole } from '../user/schema/user.schema';
+import { User } from '../user/schema/user.schema';
 import { AvailabilityService } from '../availability/availability.service';
 import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
@@ -39,7 +39,6 @@ export type CreateBookingDto = {
   customer: BookingCustomerInput;
   date: string;
   slots: number[];
-  status?: BookingStatus;
 };
 export type GetBookingsDto = {
   companyId: Company['_id'];
@@ -56,6 +55,7 @@ export type UpdateBookingServiceDto = GetBookingDto & UpdateBookingDto;
 export type GetCustomerDto = {
   companyId: Company['_id'];
   customerId: User['_id'];
+  assignedSpecialistId?: Specialist['_id'] | string;
 };
 export type GetCustomerBookingsDto = GetCustomerDto & {
   offset?: string;
@@ -68,7 +68,7 @@ export class BookingService {
   constructor(
     @InjectModel(Booking.name) private bookingModel: Model<Booking>,
     @InjectModel(Service.name) private serviceModel: Model<Service>,
-    @InjectModel(UserRole.SPECIALIST)
+    @InjectModel(Specialist.name)
     private specialistModel: Model<Specialist>,
     @InjectModel(Company.name) private companyModel: Model<Company>,
     private availabilityService: AvailabilityService,
@@ -94,7 +94,10 @@ export class BookingService {
 
     const [company, specialist, services] = await Promise.all([
       this.companyModel.findById(companyId).lean(),
-      this.specialistModel.findById(specialistId).lean(),
+      this.specialistModel
+        .findOne({ _id: specialistId, company: companyId, active: true })
+        .populate('userId', 'email firstName lastName avatar')
+        .lean(),
       this.serviceModel
         .find({ _id: { $in: uniqueServiceIds }, company: companyId })
         .populate('category')
@@ -112,6 +115,18 @@ export class BookingService {
     if (services.length !== uniqueServiceIds.length) {
       throw new NotFoundException('Service not found');
     }
+
+    const unsupportedService = services.find(
+      (service) =>
+        (service.specialists?.length || 0) > 0 &&
+        !service.specialists.some((reference) =>
+          this.getEntityId(reference).equals(specialistId),
+        ),
+    );
+    if (unsupportedService)
+      throw new BadRequestException(
+        'Specialist does not provide selected service',
+      );
 
     const serviceSnapshots = serviceSelections.map(
       ({ serviceId, optionId }) => {
@@ -132,6 +147,15 @@ export class BookingService {
       (sum, service) => sum + service.selectedOption.price,
       0,
     );
+    const totalDuration = serviceSnapshots.reduce(
+      (sum, service) => sum + service.selectedOption.duration,
+      0,
+    );
+    if (dto.slots.length !== Math.ceil(totalDuration / 15)) {
+      throw new BadRequestException(
+        'Booking slots do not match selected service duration',
+      );
+    }
 
     const customer = await this.userService.findOrCreateCustomer({
       email: dto.customer.email,
@@ -145,7 +169,7 @@ export class BookingService {
       services: serviceSnapshots,
       totalPrice,
       specialist: this.toSpecialistSnapshot(specialist),
-      customer: this.toCustomerSnapshot(customer),
+      customer: this.toCustomerSnapshot(customer, dto.customer),
     });
     const savedBooking = await booking.save();
 
@@ -259,7 +283,8 @@ export class BookingService {
     ];
     const [specialist, services] = await Promise.all([
       this.specialistModel
-        .findOne({ _id: specialistId, company: companyId })
+        .findOne({ _id: specialistId, company: companyId, active: true })
+        .populate('userId', 'email firstName lastName avatar')
         .lean(),
       this.serviceModel
         .find({ _id: { $in: uniqueServiceIds }, company: companyId })
@@ -334,13 +359,79 @@ export class BookingService {
     return booking.save();
   }
 
-  async getBookingsCustomers(dto: Pick<GetBookingsDto, 'companyId'>) {
+  async rescheduleAssignedBooking(dto: {
+    companyId: string;
+    bookingId: string;
+    specialistId: string;
+    date: string;
+    slots: number[];
+  }) {
+    if (!dto.specialistId)
+      throw new NotFoundException('Specialist profile not found');
+    const booking = await this.bookingModel.findOne({
+      _id: this.toObjectId(dto.bookingId, 'Booking not found'),
+      'company._id': this.toObjectId(dto.companyId),
+      'specialist._id': this.toObjectId(dto.specialistId),
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    const duration = booking.services.reduce(
+      (sum, service) => sum + service.selectedOption.duration,
+      0,
+    );
+    if (dto.slots.length !== Math.ceil(duration / 15))
+      throw new BadRequestException(
+        'Booking slots do not match service duration',
+      );
+    await this.availabilityService.assertSlotsAreBookable({
+      companyId: dto.companyId,
+      specialistId: dto.specialistId,
+      date: dto.date,
+      slots: dto.slots,
+      excludeBookingId: dto.bookingId,
+    });
+    booking.date = dto.date;
+    booking.slots = [...dto.slots].sort((a, b) => a - b);
+    return booking.save();
+  }
+
+  async updateAssignedBookingStatus(dto: {
+    companyId: string;
+    bookingId: string;
+    specialistId: string;
+    status: BookingStatus;
+  }) {
+    const booking = await this.bookingModel.findOne({
+      _id: this.toObjectId(dto.bookingId, 'Booking not found'),
+      'company._id': this.toObjectId(dto.companyId),
+      'specialist._id': this.toObjectId(dto.specialistId),
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    const allowed: Partial<Record<BookingStatus, BookingStatus[]>> = {
+      [BookingStatus.PENDING]: [
+        BookingStatus.CONFIRMED,
+        BookingStatus.OFF,
+      ],
+      [BookingStatus.CONFIRMED]: [
+        BookingStatus.COMPLETED,
+        BookingStatus.OFF,
+      ],
+    };
+    if (!allowed[booking.status]?.includes(dto.status))
+      throw new BadRequestException(
+        'Status transition is not allowed for specialist',
+      );
+    booking.status = dto.status;
+    return booking.save();
+  }
+
+  async getBookingsCustomers(
+    dto: Pick<GetBookingsDto, 'companyId' | 'specialistId'>,
+  ) {
+    const filters = this.getCustomerFilters(dto);
     const uniqueCustomers = await this.bookingModel
       .aggregate([
         {
-          $match: {
-            'company._id': this.toObjectId(dto.companyId),
-          },
+          $match: filters,
         },
         { $sort: { createdAt: -1 } },
         {
@@ -391,6 +482,11 @@ export class BookingService {
   async getCustomerDetails(dto: GetCustomerDto) {
     const companyId = this.toObjectId(dto.companyId, 'Customer not found');
     const customerId = this.toObjectId(dto.customerId, 'Customer not found');
+    const filters = this.getCustomerFilters({
+      companyId,
+      customerId,
+      specialistId: dto.assignedSpecialistId,
+    });
 
     const stats = await this.bookingModel.aggregate<{
       customer: BookingCustomerSnapshot;
@@ -400,10 +496,7 @@ export class BookingService {
       moneySpent: number;
     }>([
       {
-        $match: {
-          'company._id': companyId,
-          'customer._id': customerId,
-        },
+        $match: filters,
       },
       { $sort: { createdAt: -1 } },
       {
@@ -448,10 +541,11 @@ export class BookingService {
       100,
     );
     const sort = this.getCustomerBookingsSort(dto.ordering);
-    const filters = {
-      'company._id': companyId,
-      'customer._id': customerId,
-    };
+    const filters = this.getCustomerFilters({
+      companyId,
+      customerId,
+      specialistId: dto.assignedSpecialistId,
+    });
 
     const [count, bookings] = await Promise.all([
       this.bookingModel.countDocuments(filters),
@@ -489,14 +583,16 @@ export class BookingService {
   private toSpecialistSnapshot(
     specialist: Specialist,
   ): BookingSpecialistSnapshot {
+    const identity = specialist.userId as User;
     return {
       _id: specialist._id,
       id: specialist._id.toString(),
-      email: specialist.email,
-      firstName: specialist.firstName,
-      lastName: specialist.lastName,
-      fullName: `${specialist.firstName} ${specialist.lastName}`.trim(),
-      avatar: specialist.avatar,
+      userId: identity._id,
+      email: identity.email,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      fullName: `${identity.firstName} ${identity.lastName}`.trim(),
+      avatar: identity.avatar,
       specialties: specialist.specialties,
       bio: specialist.bio,
       rating: specialist.rating,
@@ -548,13 +644,16 @@ export class BookingService {
     return (option as Service['options'][number] & { _id: Types.ObjectId })._id;
   }
 
-  private toCustomerSnapshot(customer: User): BookingCustomerSnapshot {
+  private toCustomerSnapshot(
+    customer: User,
+    submitted?: BookingCustomerInput,
+  ): BookingCustomerSnapshot {
     return {
       _id: customer._id,
       id: customer._id.toString(),
       email: customer.email,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
+      firstName: submitted?.first_name || customer.firstName,
+      lastName: submitted?.last_name || customer.lastName,
       avatar: customer.avatar,
     };
   }
@@ -585,6 +684,36 @@ export class BookingService {
     if (dto.specialistId) {
       filters['specialist._id'] = this.toObjectId(
         dto.specialistId,
+        'Specialist not found',
+      );
+    }
+
+    return filters;
+  }
+
+  private getCustomerFilters({
+    companyId,
+    customerId,
+    specialistId,
+  }: {
+    companyId: Company['_id'];
+    customerId?: User['_id'];
+    specialistId?: Specialist['_id'] | string;
+  }): Record<string, unknown> {
+    const filters: Record<string, unknown> = {
+      'company._id': this.toObjectId(companyId, 'Customer not found'),
+    };
+
+    if (customerId) {
+      filters['customer._id'] = this.toObjectId(
+        customerId,
+        'Customer not found',
+      );
+    }
+
+    if (specialistId) {
+      filters['specialist._id'] = this.toObjectId(
+        specialistId,
         'Specialist not found',
       );
     }

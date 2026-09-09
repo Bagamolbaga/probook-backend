@@ -4,53 +4,23 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { UserRole } from '../../user/schema/user.schema';
+import { MembershipService } from '../../memberships/membership.service';
+import { CompanyRole } from '../../memberships/schema/company-membership.schema';
 
+/** @deprecated Prefer CompanyPermissionGuard. */
 @Injectable()
 export class CompanyOwnerGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  constructor(private readonly memberships: MembershipService) {}
+  async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
     const companyId = request.params?.companyId;
-
-    if (!user || user.role !== UserRole.OWNER) {
-      throw new ForbiddenException(
-        'Only company owner can perform this action',
-      );
-    }
-
-    if (!companyId) {
-      return true;
-    }
-
-    const userCompanyId = this.getId(user.company);
-
-    if (userCompanyId !== companyId.toString()) {
-      throw new ForbiddenException(
-        'Only company owner can perform this action',
-      );
-    }
-
+    if (!request.user?._id || !companyId)
+      throw new ForbiddenException('Active owner membership required');
+    const membership = (
+      await this.memberships.findActive(request.user._id, companyId)
+    )[0];
+    if (!membership?.roles.includes(CompanyRole.OWNER))
+      throw new ForbiddenException('Active owner membership required');
     return true;
-  }
-
-  private getId(value: unknown) {
-    if (!value) {
-      return null;
-    }
-
-    if (
-      typeof value === 'object' &&
-      'toHexString' in value &&
-      typeof (value as { toHexString: unknown }).toHexString === 'function'
-    ) {
-      return (value as { toHexString: () => string }).toHexString();
-    }
-
-    if (typeof value === 'object' && '_id' in value) {
-      return this.getId((value as { _id: unknown })._id);
-    }
-
-    return value.toString();
   }
 }

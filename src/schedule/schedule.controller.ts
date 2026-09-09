@@ -6,11 +6,17 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { Query } from '@nestjs/common';
 import { AvailabilityService } from 'src/availability/availability.service';
 import { CreateScheduleDto, UpdateScheduleDto } from './dto/schedule.dto';
 import { ScheduleService } from './schedule.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyPermissionGuard } from '../memberships/company-permission.guard';
+import { CompanyPermission } from '../memberships/membership.service';
+import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
+import { SpecialistSelfOrOwnerGuard } from '../auth/guards/specialist-self-or-owner.guard';
 
 @Controller('companies')
 export class ScheduleController {
@@ -20,6 +26,8 @@ export class ScheduleController {
   ) {}
 
   @Get('/:companyId/schedules')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async getCompanySchedules(@Param('companyId') companyId: string) {
     const schedules = await this.scheduleService.getCompanySchedules(companyId);
     return {
@@ -31,6 +39,7 @@ export class ScheduleController {
   }
 
   @Get('/:companyId/specialists/:specialistId/schedules')
+  @UseGuards(JwtAuthGuard, SpecialistSelfOrOwnerGuard)
   async getSpecialistSchedules(
     @Param('companyId') companyId: string,
     @Param('specialistId') specialistId: string,
@@ -65,6 +74,8 @@ export class ScheduleController {
   }
 
   @Get('/:companyId/schedules/:scheduleId')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async getScheduleById(
     @Param('companyId') companyId: string,
     @Param('scheduleId') scheduleId: string,
@@ -73,6 +84,8 @@ export class ScheduleController {
   }
 
   @Post('/:companyId/schedules')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async createSchedule(
     @Param('companyId') companyId: string,
     @Body() body: CreateScheduleDto,
@@ -81,6 +94,8 @@ export class ScheduleController {
   }
 
   @Patch('/:companyId/schedules/:scheduleId')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async updateSchedule(
     @Param('companyId') companyId: string,
     @Param('scheduleId') scheduleId: string,
@@ -90,6 +105,8 @@ export class ScheduleController {
   }
 
   @Delete('/:companyId/schedules/:scheduleId')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async deleteSchedule(
     @Param('companyId') companyId: string,
     @Param('scheduleId') scheduleId: string,

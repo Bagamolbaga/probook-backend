@@ -1,5 +1,4 @@
 import { Types } from 'mongoose';
-import { UserRole } from '../user/schema/user.schema';
 import { ServiceService } from './services.service';
 
 const companyId = new Types.ObjectId('66b000000000000000000001');
@@ -76,7 +75,7 @@ describe('ServiceService specialist synchronization', () => {
       {
         _id: { $in: [specialist1Id, specialist2Id] },
         company: companyId,
-        role: UserRole.SPECIALIST,
+        active: true,
       },
       { $addToSet: { services: serviceId } },
     );
@@ -166,7 +165,7 @@ describe('ServiceService specialist synchronization', () => {
 
     expect(serviceModel.findOneAndUpdate).toHaveBeenCalledWith(
       {
-        _id: serviceId.toString(),
+        _id: serviceId,
         company: companyId,
       },
       { $set: { specialists: [specialist2Id] } },
@@ -177,7 +176,7 @@ describe('ServiceService specialist synchronization', () => {
       {
         _id: { $in: [specialist2Id] },
         company: companyId,
-        role: UserRole.SPECIALIST,
+        active: true,
       },
       { $addToSet: { services: serviceId } },
     );
@@ -186,7 +185,7 @@ describe('ServiceService specialist synchronization', () => {
       {
         _id: { $in: [specialist1Id] },
         company: companyId,
-        role: UserRole.SPECIALIST,
+        active: true,
       },
       { $pull: { services: serviceId } },
     );
@@ -215,7 +214,7 @@ describe('ServiceService specialist synchronization', () => {
     });
 
     expect(serviceModel.findOneAndUpdate).toHaveBeenCalledWith(
-      { _id: serviceId.toString(), company: companyId },
+      { _id: serviceId, company: companyId },
       { $set: { category: globalCategoryId } },
       { new: true },
     );

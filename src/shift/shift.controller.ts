@@ -8,13 +8,17 @@ import {
   Post,
   Put,
   Query,
-  Request,
+  UseGuards,
 } from '@nestjs/common';
 import { ShiftService } from './shift.service';
 import { Types } from 'mongoose';
 import { SpecialistService } from 'src/specialists/specialist.service';
 import { CreateShiftDto, UpdateShiftDto } from './dto/shift.dto';
 import { ShiftKind } from './schema/shift.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyPermissionGuard } from '../memberships/company-permission.guard';
+import { CompanyPermission } from '../memberships/membership.service';
+import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
 
 @Controller('companies')
 export class ShiftController {
@@ -83,35 +87,19 @@ export class ShiftController {
     };
   }
 
-  @Get()
-  async getCompanyBy(@Request() req) {
-    const { id } = req.query;
-    if (id) {
-      const user = await this.shiftService.getShiftBy({ id });
-
-      if (!user) {
-        throw new NotFoundException('Company not found');
-      }
-
-      return user;
-    }
-  }
-
   @Post('/:companyId/shifts')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async createCompany(
     @Param('companyId') companyId: Types.ObjectId,
     @Body() body: CreateShiftDto,
   ) {
-    try {
-      const newCompany = await this.shiftService.createShift(companyId, body);
-
-      return newCompany;
-    } catch (error) {
-      console.log(error);
-    }
+    return this.shiftService.createShift(companyId, body);
   }
 
   @Put('/:companyId/shifts/:shiftId')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async addSpecialistToService(
     @Param('companyId') companyId: string,
     @Param('shiftId') shiftId: Types.ObjectId,
@@ -125,19 +113,16 @@ export class ShiftController {
       throw new NotFoundException('Shift not found');
     }
 
-    try {
-      const service = await this.shiftService.updateShiftById({
-        id: shiftId,
-        data: body,
-      });
-
-      return service;
-    } catch (error) {
-      console.log(error);
-    }
+    return this.shiftService.updateShiftById({
+      id: shiftId,
+      companyId,
+      data: body,
+    });
   }
 
   @Delete('/:companyId/shifts/:shiftId')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.SCHEDULE_MANAGE)
   async deleteShift(
     @Param('companyId') companyId: string,
     @Param('shiftId') shiftId: Types.ObjectId,
@@ -150,14 +135,9 @@ export class ShiftController {
       throw new NotFoundException('Shift not found');
     }
 
-    try {
-      const deletedShift = await this.shiftService.deleteShiftBy({
-        id: shiftId,
-      });
-
-      return deletedShift;
-    } catch (error) {
-      console.log(error);
-    }
+    return this.shiftService.deleteShiftBy({
+      id: shiftId,
+      companyId,
+    });
   }
 }

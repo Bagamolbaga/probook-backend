@@ -18,6 +18,7 @@ export type BookingCompanySnapshot = {
 export type BookingSpecialistSnapshot = {
   _id: Types.ObjectId;
   id: string;
+  userId: Types.ObjectId;
   email: string;
   firstName: string;
   lastName: string;
@@ -64,6 +65,7 @@ export type BookingCustomerSnapshot = {
   firstName: string;
   lastName: string;
   avatar?: string | null;
+  phone?: string;
 };
 
 export enum BookingStatus {

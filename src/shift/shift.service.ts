@@ -101,7 +101,7 @@ export class ShiftService {
 
   async getShiftBy({ id }: { id?: Shift['_id'] }) {
     const shift = await this.shiftModel.findOne(
-      { _id: id },
+      { _id: id ? new Types.ObjectId(id.toString()) : undefined },
       {},
       { populate: [] },
     );
@@ -110,14 +110,21 @@ export class ShiftService {
 
   async updateShiftById({
     id,
+    companyId,
     data,
   }: {
     id?: Shift['_id'];
+    companyId: Shift['company'] | string;
     data: UpdateShiftDto;
   }) {
-    const shift = await this.shiftModel.findByIdAndUpdate(id, data, {
-      new: true,
-    });
+    const shift = await this.shiftModel.findOneAndUpdate(
+      {
+        _id: id ? new Types.ObjectId(id.toString()) : undefined,
+        company: new Types.ObjectId(companyId.toString()),
+      },
+      data,
+      { new: true },
+    );
 
     if (!shift) {
       throw new NotFoundException('Shift not found');
@@ -126,9 +133,16 @@ export class ShiftService {
     return this.toDto(shift);
   }
 
-  async deleteShiftBy({ id }: { id?: Shift['_id'] }) {
+  async deleteShiftBy({
+    id,
+    companyId,
+  }: {
+    id?: Shift['_id'];
+    companyId: Shift['company'] | string;
+  }) {
     const deletedShift = await this.shiftModel.findOneAndDelete({
-      _id: id,
+      _id: id ? new Types.ObjectId(id.toString()) : undefined,
+      company: new Types.ObjectId(companyId.toString()),
     });
 
     if (!deletedShift) {
@@ -230,16 +244,22 @@ export class ShiftService {
     };
 
     if (specialistIds) {
-      query['$set']['specialists'] = specialistIds;
+      query['$set']['specialists'] = specialistIds.map(
+        (id) => new Types.ObjectId(id),
+      );
     }
 
-    return this.shiftModel.findByIdAndUpdate(shiftId, query, { new: true });
+    return this.shiftModel.findByIdAndUpdate(
+      new Types.ObjectId(shiftId),
+      query,
+      { new: true },
+    );
   }
 
   async removeSpecialistFromShift(shiftId: string, specialistId: string) {
     return this.shiftModel.findByIdAndUpdate(
-      shiftId,
-      { $pull: { specialists: specialistId } },
+      new Types.ObjectId(shiftId),
+      { $pull: { specialists: new Types.ObjectId(specialistId) } },
       { new: true },
     );
   }

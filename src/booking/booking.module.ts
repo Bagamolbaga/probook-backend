@@ -6,7 +6,7 @@ import { BookingService } from './booking.service';
 import { UserModule } from 'src/user/user.module';
 import { SpecialistModule } from 'src/specialists/specialist.module';
 import { ServiceModule } from 'src/services/services.module';
-import { UserRole } from 'src/user/schema/user.schema';
+import { Specialist } from 'src/specialists/schema/specialists.schema';
 import { SpecialistSchema } from 'src/specialists/schema/specialists.schema';
 import { Service, ServiceSchema } from 'src/services/schema/services.schema';
 import { AvailabilityModule } from 'src/availability/availability.module';
@@ -28,7 +28,7 @@ import { NotificationModule } from 'src/notification/notification.module';
         name: Service.name,
         schema: ServiceSchema,
       },
-      { name: UserRole.SPECIALIST, schema: SpecialistSchema },
+      { name: Specialist.name, schema: SpecialistSchema },
     ]),
     UserModule,
     SpecialistModule,

@@ -5,7 +5,7 @@ import { Company, CompanySchema } from 'src/companies/schema/company.schema';
 import { Shift, ShiftSchema } from 'src/shift/schema/shift.schema';
 import { Schedule, ScheduleSchema } from 'src/schedule/schema/schedule.schema';
 import { SpecialistSchema } from 'src/specialists/schema/specialists.schema';
-import { UserRole } from 'src/user/schema/user.schema';
+import { Specialist } from 'src/specialists/schema/specialists.schema';
 import { AvailabilityController } from './availability.controller';
 import { AvailabilityService } from './availability.service';
 
@@ -16,7 +16,7 @@ import { AvailabilityService } from './availability.service';
       { name: Company.name, schema: CompanySchema },
       { name: Shift.name, schema: ShiftSchema },
       { name: Schedule.name, schema: ScheduleSchema },
-      { name: UserRole.SPECIALIST, schema: SpecialistSchema },
+      { name: Specialist.name, schema: SpecialistSchema },
     ]),
   ],
   controllers: [AvailabilityController],

@@ -5,6 +5,7 @@ jest.mock('../availability/availability.service', () => ({
 }));
 
 import { BookingService } from './booking.service';
+import { BookingStatus } from './schema/booking.schema';
 
 describe('BookingService', () => {
   it('stores immutable entity snapshots when creating a booking', async () => {
@@ -40,23 +41,29 @@ describe('BookingService', () => {
             _id: optionId,
             name: 'Standard',
             price: 50,
-            duration: 60,
+            duration: 30,
           },
         ],
         category: { _id: new Types.ObjectId(), name: 'Hair' },
       },
     ]);
     const serviceModel = { find: jest.fn().mockReturnValue(serviceQuery) };
-    const specialistModel = {
-      findById: jest.fn().mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          _id: specialistId,
+    const specialistQuery = {
+      populate: jest.fn(),
+      lean: jest.fn().mockResolvedValue({
+        _id: specialistId,
+        userId: {
+          _id: new Types.ObjectId(),
           email: 'specialist@example.com',
           firstName: 'Sam',
           lastName: 'Smith',
-          specialties: ['Hair'],
-        }),
+        },
+        specialties: ['Hair'],
       }),
+    };
+    specialistQuery.populate.mockReturnValue(specialistQuery);
+    const specialistModel = {
+      findOne: jest.fn().mockReturnValue(specialistQuery),
     };
     const companyModel = {
       findById: jest.fn().mockReturnValue({
@@ -338,17 +345,23 @@ describe('BookingService', () => {
     const specialist = {
       _id: specialistId,
       company: companyId,
-      email: 'specialist@example.com',
-      firstName: 'Sam',
-      lastName: 'Smith',
-      avatar: null,
+      userId: {
+        _id: new Types.ObjectId(),
+        email: 'specialist@example.com',
+        firstName: 'Sam',
+        lastName: 'Smith',
+        avatar: null,
+      },
       specialties: ['Hair'],
       services: [serviceId],
     };
+    const specialistQuery = {
+      populate: jest.fn(),
+      lean: jest.fn().mockResolvedValue(specialist),
+    };
+    specialistQuery.populate.mockReturnValue(specialistQuery);
     const specialistModel = {
-      findOne: jest.fn().mockReturnValue({
-        lean: jest.fn().mockResolvedValue(specialist),
-      }),
+      findOne: jest.fn().mockReturnValue(specialistQuery),
     };
     const serviceQuery = {
       populate: jest.fn(),
@@ -443,17 +456,23 @@ describe('BookingService', () => {
         exec: jest.fn().mockResolvedValue({ save: jest.fn() }),
       }),
     };
-    const specialistModel = {
-      findOne: jest.fn().mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          _id: specialistId,
+    const specialistQuery = {
+      populate: jest.fn(),
+      lean: jest.fn().mockResolvedValue({
+        _id: specialistId,
+        userId: {
+          _id: new Types.ObjectId(),
           email: 'specialist@example.com',
           firstName: 'Sam',
           lastName: 'Smith',
-          specialties: [],
-          services: [serviceId],
-        }),
+        },
+        specialties: [],
+        services: [serviceId],
       }),
+    };
+    specialistQuery.populate.mockReturnValue(specialistQuery);
+    const specialistModel = {
+      findOne: jest.fn().mockReturnValue(specialistQuery),
     };
     const serviceQuery = {
       populate: jest.fn(),
@@ -534,6 +553,50 @@ describe('BookingService', () => {
         }),
       ]),
     );
+  });
+
+  it('limits the customer list aggregation to bookings assigned to a specialist', async () => {
+    const companyId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const aggregate = jest.fn().mockReturnValue({ exec: jest.fn() });
+    const service = new BookingService(
+      { aggregate } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.getBookingsCustomers({ companyId, specialistId });
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({
+      $match: {
+        'company._id': expect.objectContaining({}),
+        'specialist._id': expect.objectContaining({}),
+      },
+    });
+  });
+
+  it('keeps the customer list unscoped when no specialist scope is supplied', async () => {
+    const companyId = new Types.ObjectId();
+    const aggregate = jest.fn().mockReturnValue({ exec: jest.fn() });
+    const service = new BookingService(
+      { aggregate } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.getBookingsCustomers({ companyId });
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({
+      $match: { 'company._id': expect.objectContaining({}) },
+    });
   });
 
   it('returns the latest customer snapshot with booking statistics', async () => {
@@ -659,5 +722,185 @@ describe('BookingService', () => {
     expect(query.sort).toHaveBeenCalledWith({ date: -1 });
     expect(query.skip).toHaveBeenCalledWith(20);
     expect(query.limit).toHaveBeenCalledWith(10);
+  });
+
+  it('returns 404 for a customer without bookings assigned to the specialist', async () => {
+    const companyId = new Types.ObjectId();
+    const customerId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const aggregate = jest.fn().mockResolvedValue([]);
+    const service = new BookingService(
+      { aggregate } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.getCustomerDetails({
+        companyId,
+        customerId,
+        assignedSpecialistId: specialistId,
+      }),
+    ).rejects.toThrow('Customer not found');
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({
+      $match: {
+        'company._id': expect.objectContaining({}),
+        'customer._id': expect.objectContaining({}),
+        'specialist._id': expect.objectContaining({}),
+      },
+    });
+  });
+
+  it('limits customer booking history to the assigned specialist', async () => {
+    const companyId = new Types.ObjectId();
+    const customerId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const query: Record<string, jest.Mock> = {
+      sort: jest.fn(),
+      skip: jest.fn(),
+      limit: jest.fn(),
+    };
+    query.sort.mockReturnValue(query);
+    query.skip.mockReturnValue(query);
+    query.limit.mockResolvedValue([{ id: 'assigned-booking' }]);
+    const bookingModel = {
+      countDocuments: jest.fn().mockResolvedValue(1),
+      find: jest.fn().mockReturnValue(query),
+    };
+    const service = new BookingService(
+      bookingModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.getCustomerBookings({
+      companyId,
+      customerId,
+      assignedSpecialistId: specialistId,
+    });
+
+    expect(bookingModel.countDocuments).toHaveBeenCalledWith({
+      'company._id': expect.objectContaining({}),
+      'customer._id': expect.objectContaining({}),
+      'specialist._id': expect.objectContaining({}),
+    });
+  });
+
+  it.each([
+    [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+    [BookingStatus.PENDING, BookingStatus.OFF],
+    [BookingStatus.CONFIRMED, BookingStatus.COMPLETED],
+    [BookingStatus.CONFIRMED, BookingStatus.OFF],
+  ])(
+    'allows a specialist to change %s booking to %s',
+    async (currentStatus, nextStatus) => {
+      const companyId = new Types.ObjectId();
+      const bookingId = new Types.ObjectId();
+      const specialistId = new Types.ObjectId();
+      const booking = {
+        status: currentStatus,
+        save: jest.fn().mockResolvedValue('saved-booking'),
+      };
+      const bookingModel = { findOne: jest.fn().mockResolvedValue(booking) };
+      const service = new BookingService(
+        bookingModel as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+
+      await expect(
+        service.updateAssignedBookingStatus({
+          companyId: companyId.toString(),
+          bookingId: bookingId.toString(),
+          specialistId: specialistId.toString(),
+          status: nextStatus,
+        }),
+      ).resolves.toBe('saved-booking');
+
+      expect(bookingModel.findOne).toHaveBeenCalledWith({
+        _id: expect.objectContaining({}),
+        'company._id': expect.objectContaining({}),
+        'specialist._id': expect.objectContaining({}),
+      });
+      const filters = bookingModel.findOne.mock.calls[0][0];
+      expect(filters._id.toString()).toBe(bookingId.toString());
+      expect(filters['company._id'].toString()).toBe(companyId.toString());
+      expect(filters['specialist._id'].toString()).toBe(
+        specialistId.toString(),
+      );
+      expect(booking.status).toBe(nextStatus);
+      expect(booking.save).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('rejects a specialist status transition outside the allowed workflow', async () => {
+    const booking = {
+      status: BookingStatus.PENDING,
+      save: jest.fn(),
+    };
+    const service = new BookingService(
+      { findOne: jest.fn().mockResolvedValue(booking) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.updateAssignedBookingStatus({
+        companyId: new Types.ObjectId().toString(),
+        bookingId: new Types.ObjectId().toString(),
+        specialistId: new Types.ObjectId().toString(),
+        status: BookingStatus.COMPLETED,
+      }),
+    ).rejects.toThrow('Status transition is not allowed for specialist');
+
+    expect(booking.save).not.toHaveBeenCalled();
+  });
+
+  it('does not reveal or update a booking not assigned to the specialist', async () => {
+    const bookingModel = { findOne: jest.fn().mockResolvedValue(null) };
+    const service = new BookingService(
+      bookingModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+
+    await expect(
+      service.updateAssignedBookingStatus({
+        companyId: companyId.toString(),
+        bookingId: bookingId.toString(),
+        specialistId: specialistId.toString(),
+        status: BookingStatus.CONFIRMED,
+      }),
+    ).rejects.toThrow('Booking not found');
+
+    expect(bookingModel.findOne).toHaveBeenCalledWith({
+      _id: expect.objectContaining({}),
+      'company._id': expect.objectContaining({}),
+      'specialist._id': expect.objectContaining({}),
+    });
   });
 });

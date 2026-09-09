@@ -10,7 +10,6 @@ import { Company } from '../companies/schema/company.schema';
 import { Schedule, ScheduleType } from '../schedule/schema/schedule.schema';
 import { Shift, ShiftKind } from '../shift/schema/shift.schema';
 import { Specialist } from '../specialists/schema/specialists.schema';
-import { UserRole } from '../user/schema/user.schema';
 import {
   AssertSlotsAreBookableInput,
   AvailabilityResult,
@@ -43,7 +42,7 @@ export class AvailabilityService {
     @InjectModel(Shift.name) private shiftModel: Model<Shift>,
     @InjectModel(Schedule.name) private scheduleModel: Model<Schedule>,
     @InjectModel(Booking.name) private bookingModel: Model<Booking>,
-    @InjectModel(UserRole.SPECIALIST)
+    @InjectModel(Specialist.name)
     private specialistModel: Model<Specialist>,
   ) {}
 

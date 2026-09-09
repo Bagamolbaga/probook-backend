@@ -4,6 +4,7 @@ import { ScheduleController } from './schedule.controller';
 import { Schedule, ScheduleSchema } from './schema/schedule.schema';
 import { ScheduleService } from './schedule.service';
 import { AvailabilityModule } from 'src/availability/availability.module';
+import { SpecialistModule } from '../specialists/specialist.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AvailabilityModule } from 'src/availability/availability.module';
       },
     ]),
     AvailabilityModule,
+    SpecialistModule,
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService],
