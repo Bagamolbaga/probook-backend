@@ -599,6 +599,68 @@ describe('BookingService', () => {
     });
   });
 
+  it('looks up customers by normalized email prefix within a company', async () => {
+    const companyId = new Types.ObjectId();
+    const exec = jest.fn().mockResolvedValue([]);
+    const aggregate = jest.fn().mockReturnValue({ exec });
+    const service = new BookingService(
+      { aggregate } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.lookupCustomers({
+      companyId,
+      search: ' Ann.+@Example ',
+      limit: 5,
+    });
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({
+      $match: {
+        'company._id': expect.objectContaining({}),
+        'customer.email': { $regex: '^ann\\.\\+@example' },
+      },
+    });
+    expect(aggregate.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([{ $limit: 5 }]),
+    );
+  });
+
+  it('returns a minimal customer for an exact global email match', async () => {
+    const customerId = new Types.ObjectId();
+    const getUserBy = jest.fn().mockResolvedValue({
+      _id: customerId,
+      email: 'customer@example.com',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      avatar: null,
+    });
+    const service = new BookingService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { getUserBy } as any,
+      {} as any,
+    );
+
+    await expect(
+      service.lookupCustomerByEmail(' Customer@Example.com '),
+    ).resolves.toEqual({
+      id: customerId.toString(),
+      email: 'customer@example.com',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      avatar: null,
+    });
+    expect(getUserBy).toHaveBeenCalledWith({ email: 'customer@example.com' });
+  });
+
   it('returns the latest customer snapshot with booking statistics', async () => {
     const companyId = new Types.ObjectId();
     const customerId = new Types.ObjectId();

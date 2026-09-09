@@ -14,6 +14,7 @@ describe('MembershipService permissions', () => {
         CompanyPermission.BOOKINGS_RESCHEDULE_SELF,
         CompanyPermission.BOOKINGS_STATUS_SELF,
         CompanyPermission.CUSTOMERS_READ_ASSIGNED,
+        CompanyPermission.CUSTOMERS_LOOKUP,
         CompanyPermission.SCHEDULE_READ_SELF,
         CompanyPermission.PROFILE_READ_SELF,
         CompanyPermission.PROFILE_UPDATE_SELF,

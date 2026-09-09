@@ -127,3 +127,4 @@ BookingSchema.index({
   status: 1,
 });
 BookingSchema.index({ 'customer._id': 1, date: -1 });
+BookingSchema.index({ 'company._id': 1, 'customer.email': 1 });

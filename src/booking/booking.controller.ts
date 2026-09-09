@@ -24,6 +24,10 @@ import { SpecialistService } from '../specialists/specialist.service';
 import { User } from '../user/schema/user.schema';
 import { BookingService } from './booking.service';
 import {
+  CustomerLookupByEmailQueryDto,
+  CustomerLookupQueryDto,
+} from './dto/customer-lookup-query.dto';
+import {
   CreateBookingRequestDto,
   RescheduleMyBookingDto,
   UpdateMyBookingStatusDto,
@@ -188,6 +192,28 @@ export class BookingController {
       specialistId,
     });
     return { count: results.length, next: null, previous: null, results };
+  }
+
+  @Get('/:companyId/customers/lookup')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.CUSTOMERS_LOOKUP)
+  async lookupCustomers(
+    @Param('companyId') companyId: Types.ObjectId,
+    @Query() query: CustomerLookupQueryDto,
+  ) {
+    const results = await this.bookings.lookupCustomers({
+      companyId,
+      search: query.search,
+      limit: query.limit,
+    });
+    return { count: results.length, next: null, previous: null, results };
+  }
+
+  @Get('/:companyId/customers/lookup-by-email')
+  @UseGuards(JwtAuthGuard, CompanyPermissionGuard)
+  @RequireCompanyPermission(CompanyPermission.CUSTOMERS_LOOKUP)
+  lookupCustomerByEmail(@Query() query: CustomerLookupByEmailQueryDto) {
+    return this.bookings.lookupCustomerByEmail(query.email);
   }
 
   @Get('/:companyId/customers/:customerId')

@@ -407,14 +407,8 @@ export class BookingService {
     });
     if (!booking) throw new NotFoundException('Booking not found');
     const allowed: Partial<Record<BookingStatus, BookingStatus[]>> = {
-      [BookingStatus.PENDING]: [
-        BookingStatus.CONFIRMED,
-        BookingStatus.OFF,
-      ],
-      [BookingStatus.CONFIRMED]: [
-        BookingStatus.COMPLETED,
-        BookingStatus.OFF,
-      ],
+      [BookingStatus.PENDING]: [BookingStatus.CONFIRMED, BookingStatus.OFF],
+      [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.OFF],
     };
     if (!allowed[booking.status]?.includes(dto.status))
       throw new BadRequestException(
@@ -477,6 +471,67 @@ export class BookingService {
         moneySpent: number;
       }
     >;
+  }
+
+  async lookupCustomers({
+    companyId,
+    search,
+    limit = 5,
+  }: {
+    companyId: Types.ObjectId;
+    search: string;
+    limit?: number;
+  }) {
+    const normalizedSearch = search.trim().toLowerCase();
+    const escapedSearch = normalizedSearch.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&',
+    );
+
+    return this.bookingModel
+      .aggregate([
+        {
+          $match: {
+            'company._id': this.toObjectId(companyId),
+            'customer.email': { $regex: `^${escapedSearch}` },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: '$customer._id',
+            customer: { $first: '$customer' },
+          },
+        },
+        { $limit: limit },
+        {
+          $project: {
+            _id: 0,
+            id: '$customer._id',
+            email: '$customer.email',
+            firstName: '$customer.firstName',
+            lastName: '$customer.lastName',
+            phone: '$customer.phone',
+            avatar: '$customer.avatar',
+          },
+        },
+      ])
+      .exec();
+  }
+
+  async lookupCustomerByEmail(email: string) {
+    const customer = await this.userService.getUserBy({
+      email: email.trim().toLowerCase(),
+    });
+    if (!customer) return null;
+
+    return {
+      id: customer._id.toString(),
+      email: customer.email,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      avatar: customer.avatar,
+    };
   }
 
   async getCustomerDetails(dto: GetCustomerDto) {
