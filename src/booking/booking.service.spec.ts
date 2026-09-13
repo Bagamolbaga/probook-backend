@@ -1,11 +1,12 @@
-import { Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 jest.mock('../availability/availability.service', () => ({
   AvailabilityService: class AvailabilityService {},
 }));
 
 import { BookingService } from './booking.service';
-import { BookingStatus } from './schema/booking.schema';
+import { Booking, BookingStatus } from './schema/booking.schema';
+import { RealtimeService } from '../notification/realtime.service';
 
 describe('BookingService', () => {
   it('stores immutable entity snapshots when creating a booking', async () => {
@@ -907,6 +908,54 @@ describe('BookingService', () => {
       expect(booking.save).toHaveBeenCalledTimes(1);
     },
   );
+
+  it('publishes a company-scoped event after updating a specialist booking status', async () => {
+    const companyId = new Types.ObjectId();
+    const bookingId = new Types.ObjectId();
+    const specialistId = new Types.ObjectId();
+    const savedBooking = {
+      _id: bookingId,
+      status: BookingStatus.CONFIRMED,
+      updatedAt: new Date('2026-09-11T10:00:00.000Z'),
+    };
+    const booking = {
+      status: BookingStatus.PENDING,
+      save: jest.fn().mockResolvedValue(savedBooking),
+    };
+    // The unit exercises only the publisher interaction.
+    const realtimeService = {
+      publishBookingUpdated: jest.fn(),
+    } as unknown as RealtimeService;
+    // The unit exercises only findOne.
+    const bookingModel = {
+      findOne: jest.fn().mockResolvedValue(booking),
+    } as unknown as Model<Booking>;
+    const service = new BookingService(
+      bookingModel,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      realtimeService,
+    );
+
+    await service.updateAssignedBookingStatus({
+      companyId: companyId.toString(),
+      bookingId: bookingId.toString(),
+      specialistId: specialistId.toString(),
+      status: BookingStatus.CONFIRMED,
+    });
+
+    expect(realtimeService.publishBookingUpdated).toHaveBeenCalledWith({
+      companyId: companyId.toString(),
+      bookingId: bookingId.toString(),
+      changed: ['status'],
+      status: BookingStatus.CONFIRMED,
+      updatedAt: savedBooking.updatedAt,
+    });
+  });
 
   it('rejects a specialist status transition outside the allowed workflow', async () => {
     const booking = {

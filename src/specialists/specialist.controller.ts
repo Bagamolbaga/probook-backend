@@ -25,12 +25,14 @@ import {
   UpdateSpecialistByOwnerDto,
   UpdateSpecialistProfileDto,
 } from './dto/specialist-profile.dto';
+import { RealtimeService } from '../notification/realtime.service';
 
 @Controller('companies')
 export class SpecialistController {
   constructor(
     private specialistService: SpecialistService,
     private membershipService: MembershipService,
+    private realtimeService: RealtimeService,
   ) {}
 
   @Get('/:companyId/specialists')
@@ -82,6 +84,10 @@ export class SpecialistController {
         ? new Types.ObjectId(body.defaultShiftId)
         : undefined,
     });
+    this.realtimeService.publishCompanyDataUpdated(
+      companyId.toString(),
+      'specialists',
+    );
 
     return profile;
   }
@@ -118,7 +124,7 @@ export class SpecialistController {
     if (!profile?.active) {
       throw new ForbiddenException('Active specialist profile required');
     }
-    return this.specialistService.updateSpecialistBy(
+    const updatedProfile = await this.specialistService.updateSpecialistBy(
       { id: profile._id, companyId },
       {
         specialties: body.specialties,
@@ -129,6 +135,12 @@ export class SpecialistController {
           : undefined,
       },
     );
+    this.realtimeService.publishCompanyDataUpdated(
+      companyId.toString(),
+      'specialists',
+    );
+
+    return updatedProfile;
   }
 
   @Put('/:companyId/specialists/:specialistId')
@@ -139,7 +151,7 @@ export class SpecialistController {
     @Param('specialistId') specialistId: Types.ObjectId,
     @Body() body: UpdateSpecialistByOwnerDto,
   ) {
-    return this.specialistService.updateSpecialistBy(
+    const specialist = await this.specialistService.updateSpecialistBy(
       { id: specialistId, companyId },
       {
         specialties: body.specialties,
@@ -151,6 +163,12 @@ export class SpecialistController {
         active: body.active,
       },
     );
+    this.realtimeService.publishCompanyDataUpdated(
+      companyId.toString(),
+      'specialists',
+    );
+
+    return specialist;
   }
 
   @Delete('/:companyId/specialists/:specialistId')
@@ -171,6 +189,10 @@ export class SpecialistController {
     await this.membershipService.deactivateSpecialist(
       specialistUserId,
       companyId,
+    );
+    this.realtimeService.publishCompanyDataUpdated(
+      companyId.toString(),
+      'specialists',
     );
     return specialist;
   }

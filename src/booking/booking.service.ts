@@ -21,6 +21,8 @@ import { AvailabilityService } from '../availability/availability.service';
 import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../notification/notification.types';
+import { RealtimeService } from '../notification/realtime.service';
+import { BookingChange } from '../notification/realtime.types';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 
 type BookingCustomerInput = {
@@ -74,6 +76,7 @@ export class BookingService {
     private availabilityService: AvailabilityService,
     private userService: UserService,
     private notificationService: NotificationService,
+    private readonly realtimeService?: RealtimeService,
   ) {}
 
   async createBooking(dto: CreateBookingDto) {
@@ -172,6 +175,8 @@ export class BookingService {
       customer: this.toCustomerSnapshot(customer, dto.customer),
     });
     const savedBooking = await booking.save();
+
+    this.publishBookingUpdated(savedBooking, companyId.toString(), ['created']);
 
     if (company.owner) {
       this.notificationService.notifyUser(
@@ -356,7 +361,13 @@ export class BookingService {
     booking.slots = [...dto.slots].sort((left, right) => left - right);
     booking.status = dto.status;
 
-    return booking.save();
+    const savedBooking = await booking.save();
+    this.publishBookingUpdated(savedBooking, companyId.toString(), [
+      'details',
+      'schedule',
+      'status',
+    ]);
+    return savedBooking;
   }
 
   async rescheduleAssignedBooking(dto: {
@@ -391,7 +402,9 @@ export class BookingService {
     });
     booking.date = dto.date;
     booking.slots = [...dto.slots].sort((a, b) => a - b);
-    return booking.save();
+    const savedBooking = await booking.save();
+    this.publishBookingUpdated(savedBooking, dto.companyId, ['schedule']);
+    return savedBooking;
   }
 
   async updateAssignedBookingStatus(dto: {
@@ -415,7 +428,23 @@ export class BookingService {
         'Status transition is not allowed for specialist',
       );
     booking.status = dto.status;
-    return booking.save();
+    const savedBooking = await booking.save();
+    this.publishBookingUpdated(savedBooking, dto.companyId, ['status']);
+    return savedBooking;
+  }
+
+  private publishBookingUpdated(
+    booking: Pick<Booking, '_id' | 'status' | 'updatedAt'>,
+    companyId: string,
+    changed: BookingChange[],
+  ) {
+    this.realtimeService?.publishBookingUpdated({
+      companyId,
+      bookingId: booking._id.toString(),
+      changed,
+      status: booking.status,
+      updatedAt: booking.updatedAt,
+    });
   }
 
   async getBookingsCustomers(

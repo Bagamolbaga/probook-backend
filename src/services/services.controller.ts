@@ -17,10 +17,14 @@ import { CompanyPermission } from '../memberships/membership.service';
 import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
+import { RealtimeService } from '../notification/realtime.service';
 
 @Controller('companies')
 export class ServiceController {
-  constructor(private servicesService: ServiceService) {}
+  constructor(
+    private servicesService: ServiceService,
+    private realtimeService: RealtimeService,
+  ) {}
 
   @Get('/:companyId/services')
   async getCompanies(@Param('companyId', ParseObjectIdPipe) companyId: string) {
@@ -61,6 +65,7 @@ export class ServiceController {
       companyId,
       ...body,
     });
+    this.realtimeService.publishCompanyDataUpdated(companyId, 'services');
 
     return newCompany;
   }
@@ -86,6 +91,7 @@ export class ServiceController {
       serviceId,
       data: body,
     });
+    this.realtimeService.publishCompanyDataUpdated(companyId, 'services');
 
     return service;
   }
@@ -109,6 +115,7 @@ export class ServiceController {
       id: serviceId,
       companyId,
     });
+    this.realtimeService.publishCompanyDataUpdated(companyId, 'services');
 
     return service;
   }

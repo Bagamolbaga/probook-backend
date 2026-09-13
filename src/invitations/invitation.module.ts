@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { Company, CompanySchema } from '../companies/schema/company.schema';
 import { EmailModule } from '../email/email.module';
 import { SpecialistModule } from '../specialists/specialist.module';
+import { NotificationModule } from '../notification/notification.module';
 import { UserModule } from '../user/user.module';
 import {
   CompanyInvitation,
@@ -26,6 +27,7 @@ import { InvitationService } from './invitation.service';
     SpecialistModule,
     EmailModule,
     AuthModule,
+    NotificationModule,
   ],
   controllers: [
     InvitationController,

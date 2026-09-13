@@ -4,6 +4,7 @@ import { SpecialistService } from './specialist.service';
 import { SpecialistController } from './specialist.controller';
 import { Specialist, SpecialistSchema } from './schema/specialists.schema';
 import { ServiceSchema } from '../services/schema/services.schema';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ServiceSchema } from '../services/schema/services.schema';
         schema: ServiceSchema,
       },
     ]),
+    NotificationModule,
   ],
   controllers: [SpecialistController],
   providers: [SpecialistService],

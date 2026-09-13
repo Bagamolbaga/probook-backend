@@ -23,6 +23,7 @@ import { EmailService } from '../email/email.service';
 import { MembershipService } from '../memberships/membership.service';
 import { CompanyRole } from '../memberships/schema/company-membership.schema';
 import { SpecialistService } from '../specialists/specialist.service';
+import { RealtimeService } from '../notification/realtime.service';
 import { UserAccountStatus } from '../user/schema/user.schema';
 import { UserService } from '../user/user.service';
 import { CreateInvitationDto } from './dto/invitation.dto';
@@ -45,6 +46,7 @@ export class InvitationService {
     private readonly email: EmailService,
     private readonly config: ConfigService,
     @InjectConnection() private readonly connection: Connection,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async create(
@@ -140,7 +142,7 @@ export class InvitationService {
     const passwordHash = await argon2.hash(password);
     const session = await this.connection.startSession();
     let user: Awaited<ReturnType<UserService['getUserForAuth']>>;
-
+    let specialistProfileId: Types.ObjectId | null = null;
     try {
       await session.withTransaction(async () => {
         user = await this.users.getUserForAuth(
@@ -172,7 +174,7 @@ export class InvitationService {
           );
         }
         if (!user) throw new BadRequestException('Unable to claim account');
-        await this.activateInTransaction(
+        specialistProfileId = await this.activateInTransaction(
           invitation,
           user._id.toString(),
           session,
@@ -180,6 +182,16 @@ export class InvitationService {
       });
     } finally {
       await session.endSession();
+    }
+    if (specialistProfileId) {
+      await this.realtime.addUserToCompany(
+        user._id.toString(),
+        invitation.companyId.toString(),
+      );
+      this.realtime.publishCompanyDataUpdated(
+        invitation.companyId.toString(),
+        'specialists',
+      );
     }
 
     return user;
@@ -243,6 +255,16 @@ export class InvitationService {
       });
     } finally {
       await session.endSession();
+    }
+    if (specialistProfileId) {
+      await this.realtime.addUserToCompany(
+        userId,
+        invitation.companyId.toString(),
+      );
+      this.realtime.publishCompanyDataUpdated(
+        invitation.companyId.toString(),
+        'specialists',
+      );
     }
     return {
       membership: await this.memberships

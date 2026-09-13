@@ -5,6 +5,7 @@ import { Shift, ShiftSchema } from './schema/shift.schema';
 import { ShiftService } from './shift.service';
 import { SpecialistModule } from 'src/specialists/specialist.module';
 import { CompanyModule } from 'src/companies/companies.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CompanyModule } from 'src/companies/companies.module';
     ]),
     SpecialistModule,
     forwardRef(() => CompanyModule),
+    NotificationModule,
   ],
   controllers: [ShiftController],
   providers: [ShiftService],

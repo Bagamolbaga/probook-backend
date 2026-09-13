@@ -7,6 +7,13 @@ import {
   MembershipStatus,
 } from './schema/company-membership.schema';
 
+export type ActiveCompanyMembership = Omit<CompanyMembership, 'companyId'> & {
+  companyId: {
+    _id: Types.ObjectId;
+    name: string;
+  };
+};
+
 export enum CompanyPermission {
   COMPANY_MANAGE = 'company:manage',
   STAFF_MANAGE = 'staff:manage',
@@ -65,7 +72,7 @@ export class MembershipService {
   findActive(
     userId: string | Types.ObjectId,
     companyId?: string | Types.ObjectId,
-  ) {
+  ): Promise<ActiveCompanyMembership[]> {
     const filter: Record<string, unknown> = {
       userId: new Types.ObjectId(userId.toString()),
       status: MembershipStatus.ACTIVE,
@@ -73,8 +80,11 @@ export class MembershipService {
     if (companyId) filter.companyId = new Types.ObjectId(companyId.toString());
     return this.membershipModel
       .find(filter)
-      .populate('companyId', 'name')
-      .lean();
+      .populate<{
+        companyId: ActiveCompanyMembership['companyId'];
+      }>('companyId', 'name')
+      .lean()
+      .exec();
   }
 
   async hasPermission(

@@ -26,6 +26,7 @@ import {
 } from '../memberships/membership.service';
 import { RequireCompanyPermission } from '../memberships/require-company-permission.decorator';
 import { CompanyRole } from '../memberships/schema/company-membership.schema';
+import { RealtimeService } from '../notification/realtime.service';
 
 @Controller('companies')
 export class ShiftController {
@@ -33,6 +34,7 @@ export class ShiftController {
     private shiftService: ShiftService,
     private specialistService: SpecialistService,
     private membershipService: MembershipService,
+    private realtimeService: RealtimeService,
   ) {}
 
   @Get('/:companyId/shifts')
@@ -127,7 +129,12 @@ export class ShiftController {
     @Param('companyId') companyId: Types.ObjectId,
     @Body() body: CreateShiftDto,
   ) {
-    return this.shiftService.createShift(companyId, body);
+    const shift = await this.shiftService.createShift(companyId, body);
+    this.realtimeService.publishCompanyDataUpdated(
+      companyId.toString(),
+      'shifts',
+    );
+    return shift;
   }
 
   @Put('/:companyId/shifts/:shiftId')
@@ -146,11 +153,13 @@ export class ShiftController {
       throw new NotFoundException('Shift not found');
     }
 
-    return this.shiftService.updateShiftById({
+    const shift = await this.shiftService.updateShiftById({
       id: shiftId,
       companyId,
       data: body,
     });
+    this.realtimeService.publishCompanyDataUpdated(companyId, 'shifts');
+    return shift;
   }
 
   @Delete('/:companyId/shifts/:shiftId')
@@ -168,9 +177,11 @@ export class ShiftController {
       throw new NotFoundException('Shift not found');
     }
 
-    return this.shiftService.deleteShiftBy({
+    const shift = await this.shiftService.deleteShiftBy({
       id: shiftId,
       companyId,
     });
+    this.realtimeService.publishCompanyDataUpdated(companyId, 'shifts');
+    return shift;
   }
 }

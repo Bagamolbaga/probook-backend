@@ -12,6 +12,7 @@ import {
   ServiceCategory,
   ServiceCategorySchema,
 } from '../service-categories/schema/service-category.schema';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import {
         schema: ServiceCategorySchema,
       },
     ]),
+    NotificationModule,
   ],
   controllers: [ServiceController],
   providers: [ServiceService],
